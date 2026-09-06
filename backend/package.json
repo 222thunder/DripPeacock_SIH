@@ -6,20 +6,24 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "test": "ts-node --transpile-only tests/ruleEngine.test.ts && ts-node --transpile-only tests/reviewService.test.ts && ts-node --transpile-only tests/authMiddleware.test.ts && ts-node --transpile-only tests/inspection.test.ts"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@types/streamifier": "^0.1.2",
     "bcrypt": "^6.0.0",
+    "cloudinary": "^2.11.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.4",
-    "multer": "^2.3.0"
+    "multer": "^2.3.0",
+    "streamifier": "^0.1.1"
   },
   "devDependencies": {
     "@types/bcrypt": "^6.0.0",

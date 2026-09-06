@@ -10,18 +10,26 @@ function cn(...inputs: ClassValue[]) {
 }
 
 interface ConfidenceMeterProps {
-  confidence: number;
+  confidence?: number | null;
   className?: string;
   showText?: boolean;
 }
 
 export function ConfidenceMeter({ confidence, className, showText = true }: ConfidenceMeterProps) {
+  if (confidence === null || confidence === undefined) {
+    return (
+      <span className={cn("text-[10px] font-bold uppercase tracking-wide bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300 px-1.5 py-0.5 rounded-md", className)}>
+        N/A
+      </span>
+    );
+  }
+
   const value = Math.max(0, Math.min(1, confidence));
   const percentage = Math.round(value * 100);
-  
+
   let color = 'bg-red-500';
   let badgeColor = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
-  
+
   if (value > 0.9) {
     color = 'bg-green-500';
     badgeColor = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
@@ -33,7 +41,7 @@ export function ConfidenceMeter({ confidence, className, showText = true }: Conf
   return (
     <div className={cn("flex items-center gap-2", className)} title={`Confidence: ${percentage}%`}>
       <div className="relative w-12 h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
-        <motion.div 
+        <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
           transition={{ duration: 0.8, ease: "easeOut", delay: 0.1 }}

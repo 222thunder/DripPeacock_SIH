@@ -35,14 +35,12 @@ llm_parser = LLMParser()
 
 MANDATORY_LEGAL_METROLOGY_FIELDS = [
     "mrp",
-    "mrp_inclusive_of_taxes",
     "net_quantity",
     "mfg_date",
     "pkd_date",
-    "consumer_care_email",
-    "consumer_care_phone",
     "manufacturer",
     "packer",
+    "consumer_care",
     "commodity_name",
     "country_of_origin"
 ]
@@ -168,7 +166,12 @@ async def analyze_image(
     t_llm_start = time.time()
     if missing_fields and llm_parser.is_configured():
         logger.info(f"Missing fields detected: {missing_fields}. Invoking LLM parser...")
-        llm_declarations = await llm_parser.parse_unstructured_text(ocr_result.raw_text, missing_fields)
+        llm_declarations = await llm_parser.parse_unstructured_text(
+            raw_text=ocr_result.raw_text, 
+            missing_fields=missing_fields,
+            image_bytes=image_bytes,
+            mime_type=file.content_type
+        )
         for k, v in llm_declarations.items():
             if k not in declarations:
                 declarations[k] = v

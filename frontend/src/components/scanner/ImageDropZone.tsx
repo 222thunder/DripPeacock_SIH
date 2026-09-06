@@ -99,19 +99,21 @@ export default function ImageDropZone({
   return (
     <div className="w-full flex flex-col gap-4">
       <motion.div
-        whileHover={previewFiles.length === 0 ? { scale: 1.01 } : {}}
-        whileTap={previewFiles.length === 0 ? { scale: 0.99 } : {}}
+        whileHover={previewFiles.length === 0 ? { scale: 1.005 } : {}}
+        whileTap={previewFiles.length === 0 ? { scale: 0.995 } : {}}
         onClick={handleZoneClick}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`relative overflow-hidden rounded-3xl border-2 border-dashed transition-colors duration-300 ${
+        className={`relative overflow-hidden rounded-[2rem] border transition-all duration-300 shadow-sm ${
           isDragActive 
-            ? 'border-blue-500 bg-blue-50/50' 
-            : 'border-neutral-200 bg-white hover:border-neutral-300'
-        } ${previewFiles.length > 0 ? 'p-6' : 'p-12 cursor-pointer'}`}
+            ? 'border-indigo-500 bg-indigo-50/30 ring-4 ring-indigo-500/10' 
+            : 'border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-md'
+        } ${previewFiles.length > 0 ? 'p-8' : 'p-16 cursor-pointer'}`}
       >
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none opacity-50" />
+        
         <input
           ref={fileInputRef}
           type="file"
@@ -122,30 +124,30 @@ export default function ImageDropZone({
         />
 
         {previewFiles.length === 0 ? (
-          <div className="flex flex-col items-center justify-center text-center">
+          <div className="flex flex-col items-center justify-center text-center relative z-10">
             <motion.div
               initial={{ y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.1, type: 'spring' as const, bounce: 0, duration: 0.4 }}
-              className="bg-neutral-100 p-4 rounded-full mb-4 text-neutral-500"
+              transition={{ delay: 0.1, type: 'spring' as const, bounce: 0, duration: 0.5 }}
+              className="bg-zinc-100/80 p-5 rounded-2xl mb-6 text-zinc-600 shadow-sm ring-1 ring-zinc-200/50"
             >
-              <Upload className="w-8 h-8" />
+              <Upload className="w-8 h-8" strokeWidth={1.5} />
             </motion.div>
             <motion.h3 
               initial={{ y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.15, type: 'spring' as const, bounce: 0, duration: 0.4 }}
-              className="text-lg font-medium text-neutral-900 mb-1"
+              transition={{ delay: 0.15, type: 'spring' as const, bounce: 0, duration: 0.5 }}
+              className="text-xl font-semibold text-zinc-900 mb-2 tracking-tight"
             >
-              Drop images here or click to browse
+              Upload packaging images
             </motion.h3>
             <motion.p 
               initial={{ y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2, type: 'spring' as const, bounce: 0, duration: 0.4 }}
-              className="text-sm text-neutral-500"
+              transition={{ delay: 0.2, type: 'spring' as const, bounce: 0, duration: 0.5 }}
+              className="text-sm text-zinc-500 font-medium"
             >
-              Supports PNG, JPG, WEBP up to {maxSizeMB}MB
+              Drag and drop, or click to browse
             </motion.p>
           </div>
         ) : (

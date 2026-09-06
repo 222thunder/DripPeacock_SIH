@@ -11,9 +11,9 @@
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
   /* Glass Materials */
-  --color-glass-bg: rgba(255, 255, 255, 0.72);
+  --color-glass-bg: rgba(255, 255, 255, 0.9);
   --color-glass-border: rgba(0, 0, 0, 0.1);
-  --color-glass-bg-dark: rgba(28, 28, 30, 0.72);
+  --color-glass-bg-dark: rgba(28, 28, 30, 0.9);
   --color-glass-border-dark: rgba(255, 255, 255, 0.1);
 }
 
@@ -66,8 +66,8 @@ body {
 /* Glass Material utilities */
 .glass {
   background-color: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
   border-bottom: 1px solid var(--glass-border);
 }
 
@@ -89,4 +89,26 @@ body {
 .transition-spring {
   transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
   transition-duration: 400ms;
+}
+
+/* Print / PDF export */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  body {
+    background: #ffffff !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Force light background so dark-mode themes don't break print output */
+  html, body {
+    color-scheme: light;
+  }
 }

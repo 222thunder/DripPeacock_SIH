@@ -40,7 +40,9 @@ def test_parse_endpoint():
     assert data["status"] == "success"
     assert "net_quantity" in data["declarations"]
     assert "mrp" in data["declarations"]
-    assert "consumer_care_email" in data["declarations"]
+    assert "consumer_care" in data["declarations"]
+    # No fabricated confidence: raw-text-only parse has no measurable OCR confidence
+    assert data["declarations"]["mrp"]["confidence"] is None
 
 def test_analyze_image_endpoint():
     img_buf = create_sample_label_image()
@@ -58,3 +60,26 @@ def test_analyze_image_endpoint():
     assert len(data["raw_ocr"]) > 0
     # Check that net quantity or mrp was detected
     assert "net_quantity" in data["declarations"] or "mrp" in data["declarations"]
+
+def test_analyze_image_declaration_shape():
+    """Declarations must use the typed nested structure, not raw guessed strings."""
+    img_buf = create_sample_label_image()
+    response = client.post(
+        "/analyze",
+        files={"file": ("label.png", img_buf, "image/png")},
+        data={"category": "food"}
+    )
+    assert response.status_code == 200
+    declarations = response.json()["declarations"]
+
+    if "mrp" in declarations:
+        assert isinstance(declarations["mrp"]["value"], dict)
+        assert "amount" in declarations["mrp"]["value"]
+        assert "inclusive_of_taxes" in declarations["mrp"]["value"]
+        assert isinstance(declarations["mrp"]["confidence"], float)
+
+    if "net_quantity" in declarations:
+        assert isinstance(declarations["net_quantity"]["value"], dict)
+        assert "value" in declarations["net_quantity"]["value"]
+        assert "unit" in declarations["net_quantity"]["value"]
+        assert isinstance(declarations["net_quantity"]["confidence"], float)

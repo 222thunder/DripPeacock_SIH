@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from typing import Dict, Any, List, Optional
+import google.generativeai as genai
 from huggingface_hub import AsyncInferenceClient
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
@@ -12,21 +13,27 @@ logger = logging.getLogger("llm_parser")
 class LLMParser:
     """
     LLM Parser supporting:
-    - Hugging Face InferenceClient (Option A: official huggingface_hub SDK)
-    - OpenAI-compatible endpoints (Groq, OpenAI, Gemini, etc.)
+    - Google Gemini (Primary multimodal model)
+    - Hugging Face InferenceClient
+    - OpenAI-compatible endpoints
     """
     def __init__(self):
-        # Check Hugging Face token first
+        # API Keys
+        self.gemini_key = os.getenv("GEMINI_API_KEY")
         self.hf_token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN")
         self.api_key = os.getenv("LLM_API_KEY")
-        self.provider = os.getenv("LLM_PROVIDER", "huggingface").lower()
+        self.provider = os.getenv("LLM_PROVIDER", "gemini").lower()
         
-        # Determine model
-        default_model = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-        self.model = os.getenv("LLM_MODEL", default_model)
-        
+        # Clients
         self.hf_client: Optional[AsyncInferenceClient] = None
         self.openai_client: Optional[AsyncOpenAI] = None
+
+        if self.gemini_key and (self.provider == "gemini" or not self.provider):
+            genai.configure(api_key=self.gemini_key)
+            self.mode = "gemini"
+            self.model = os.getenv("LLM_MODEL", "gemini-1.5-flash")
+            logger.info(f"LLMParser initialized with Gemini API for model: {self.model}")
+            return
 
         # Check if HF Token is set or LLM_API_KEY starts with 'hf_'
         effective_hf_token = self.hf_token or (self.api_key if self.api_key and self.api_key.startswith("hf_") else None)
@@ -38,6 +45,7 @@ class LLMParser:
                 provider="hf-inference"
             )
             self.mode = "huggingface"
+            self.model = os.getenv("LLM_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct")
             logger.info(f"LLMParser initialized with Hugging Face InferenceClient for model: {self.model}")
         elif self.api_key:
             # Fallback / Alternative: OpenAI-compatible client (e.g. Groq, Together, OpenAI)
@@ -47,18 +55,21 @@ class LLMParser:
                 base_url=base_url
             )
             self.mode = "openai_compatible"
+            self.model = os.getenv("LLM_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct")
             logger.info(f"LLMParser initialized with OpenAI-compatible API for model: {self.model} at {base_url}")
         else:
             self.mode = "unconfigured"
-            logger.warning("No Hugging Face token or API key configured. LLM fallback will be skipped until configured.")
+            logger.warning("No API keys configured. LLM fallback will be skipped until configured.")
 
     def is_configured(self) -> bool:
-        return self.hf_client is not None or self.openai_client is not None
+        return self.mode != "unconfigured"
 
     async def parse_unstructured_text(
         self,
         raw_text: str,
-        missing_fields: List[str]
+        missing_fields: List[str],
+        image_bytes: Optional[bytes] = None,
+        mime_type: str = "image/jpeg"
     ) -> Dict[str, Any]:
         """
         Calls the LLM API via Hugging Face InferenceClient (or OpenAI client)
@@ -108,7 +119,26 @@ Return JSON:
 
         try:
             content = ""
-            if self.hf_client:
+            if self.mode == "gemini":
+                logger.info(f"[LLM] Sending request to Gemini model: {self.model}")
+                logger.info(f"[LLM] Missing fields requested: {missing_fields}")
+                
+                # We use the generate_content_async for async support
+                model = genai.GenerativeModel(self.model, system_instruction=system_prompt)
+                
+                prompt_parts = [user_prompt]
+                if image_bytes:
+                    logger.info(f"[LLM] Attaching image ({len(image_bytes)} bytes) to Gemini prompt")
+                    prompt_parts.insert(0, {"mime_type": mime_type, "data": image_bytes})
+                
+                response = await model.generate_content_async(
+                    prompt_parts, 
+                    generation_config={"temperature": 0.1, "response_mime_type": "application/json"}
+                )
+                content = response.text
+                logger.info(f"[LLM] Raw response:\n{content}")
+                
+            elif self.hf_client:
                 # Option A: Hugging Face AsyncInferenceClient
                 logger.info(f"[LLM] Sending request to Hugging Face model: {self.model}")
                 logger.info(f"[LLM] Missing fields requested: {missing_fields}")
@@ -147,17 +177,37 @@ Return JSON:
             parsed = json.loads(content)
             logger.info(f"[LLM] Parsed JSON: {json.dumps(parsed, indent=2, default=str)}")
 
-            # Format output into standardized ExtractedField structures
+            # Format output into standardized ExtractedField structures.
+            # There is no measurable confidence score for LLM extraction, so we
+            # store None (unknown) instead of a fabricated value.
             formatted_declarations: Dict[str, Any] = {}
             for k, v in parsed.items():
-                if v is not None and v != "":
-                    formatted_declarations[k] = {
-                        "value": v,
-                        "raw_text": json.dumps(v) if isinstance(v, (dict, list)) else str(v),
-                        "confidence": 0.85,
-                        "is_deterministic": False,
-                        "source": f"HuggingFace ({self.model})"
-                    }
+                if v is None or v == "":
+                    continue
+
+                if k == "dates" and isinstance(v, dict):
+                    for date_key, date_val in v.items():
+                        if date_val is not None and date_val != "":
+                            formatted_declarations[date_key] = {
+                                "value": str(date_val),
+                                "raw_text": str(date_val),
+                                "confidence": None,
+                                "is_deterministic": False,
+                                "source": f"LLM ({self.model})",
+                            }
+                    continue
+
+                # Normalize LLM mrp shape ({value,...}) to the canonical {amount,...}
+                if k == "mrp" and isinstance(v, dict) and "amount" not in v and "value" in v:
+                    v = {**v, "amount": v.pop("value")}
+
+                formatted_declarations[k] = {
+                    "value": v,
+                    "raw_text": json.dumps(v) if isinstance(v, (dict, list)) else str(v),
+                    "confidence": None,
+                    "is_deterministic": False,
+                    "source": f"LLM ({self.model})",
+                }
 
             logger.info(f"[LLM] Formatted declarations keys: {list(formatted_declarations.keys())}")
             return formatted_declarations
