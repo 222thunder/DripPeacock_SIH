@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-primary: #007AFF;
+  --color-success: #34C759;
+  --color-danger: #FF3B30;
+  --color-warning: #FF9500;
+  --color-review: #FF9F0A;
+  
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Glass Materials */
+  --color-glass-bg: rgba(255, 255, 255, 0.72);
+  --color-glass-border: rgba(0, 0, 0, 0.1);
+  --color-glass-bg-dark: rgba(28, 28, 30, 0.72);
+  --color-glass-border-dark: rgba(255, 255, 255, 0.1);
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #1c1c1e;
+  --glass-bg: var(--color-glass-bg);
+  --glass-border: var(--color-glass-border);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #000000;
+    --foreground: #f5f5f7;
+    --glass-bg: var(--color-glass-bg-dark);
+    --glass-border: var(--color-glass-border-dark);
+  }
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  * {
+    transform: none !important;
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Typography utilities */
+.tracking-tight-heading {
+  letter-spacing: -0.02em;
+}
+
+/* Glass Material utilities */
+.glass {
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+/* Status colors */
+.status-compliant { color: var(--color-success); }
+.status-non-compliant { color: var(--color-danger); }
+.status-review { color: var(--color-review); }
+.status-na { color: #8E8E93; }
+
+/* Apple-style interactive states */
+.active-scale {
+  transition: transform 0.15s cubic-bezier(0, 0, 0.2, 1);
+}
+.active-scale:active {
+  transform: scale(0.97);
+}
+
+/* Transitions */
+.transition-spring {
+  transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+  transition-duration: 400ms;
+}
