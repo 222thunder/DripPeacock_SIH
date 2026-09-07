@@ -15,7 +15,7 @@ logger = logging.getLogger("llm_parser")
 class LLMParser:
     """
     LLM Parser supporting:
-    - Google Gemini (Primary multimodal model)
+    - Google Gemini (Primary multimodal model) with fallback chain + retry
     - Hugging Face InferenceClient
     - OpenAI-compatible endpoints
     """
@@ -25,23 +25,27 @@ class LLMParser:
         self.hf_token = os.getenv("HF_TOKEN") or os.getenv("HUGGINGFACE_TOKEN")
         self.api_key = os.getenv("LLM_API_KEY")
         self.provider = os.getenv("LLM_PROVIDER", "gemini").lower()
-        
+
         # Clients
         self.hf_client: Optional[AsyncInferenceClient] = None
         self.openai_client: Optional[AsyncOpenAI] = None
+        self.gemini_client: Optional[genai.Client] = None
+        self.fallback_models: List[str] = []
 
         if self.gemini_key and (self.provider == "gemini" or not self.provider):
             self.gemini_client = genai.Client(api_key=self.gemini_key)
             self.mode = "gemini"
-            self.model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+            self.model = os.getenv("LLM_MODEL", "gemini-3.8-flash")
+            # Fallback chain: tried in order if primary returns 503/429
+            self.fallback_models = ["gemini-3.1-pro-preview", "gemini-3.5-flash"]
             logger.info(f"LLMParser initialized with Gemini API (google.genai) for model: {self.model}")
+            logger.info(f"LLMParser fallback chain: {self.fallback_models}")
             return
 
         # Check if HF Token is set or LLM_API_KEY starts with 'hf_'
         effective_hf_token = self.hf_token or (self.api_key if self.api_key and self.api_key.startswith("hf_") else None)
 
         if effective_hf_token and (self.provider == "huggingface" or not os.getenv("LLM_BASE_URL")):
-            # Option A: Official Hugging Face InferenceClient
             self.hf_client = AsyncInferenceClient(
                 token=effective_hf_token,
                 provider="hf-inference"
@@ -50,7 +54,6 @@ class LLMParser:
             self.model = os.getenv("LLM_MODEL", "meta-llama/Meta-Llama-3.1-8B-Instruct")
             logger.info(f"LLMParser initialized with Hugging Face InferenceClient for model: {self.model}")
         elif self.api_key:
-            # Fallback / Alternative: OpenAI-compatible client (e.g. Groq, Together, OpenAI)
             base_url = os.getenv("LLM_BASE_URL", "https://api-inference.huggingface.co/v1")
             self.openai_client = AsyncOpenAI(
                 api_key=self.api_key,
@@ -66,6 +69,73 @@ class LLMParser:
     def is_configured(self) -> bool:
         return self.mode != "unconfigured"
 
+    def _is_transient_error(self, err_str: str) -> bool:
+        """Returns True for errors worth retrying (overload, rate limit)."""
+        transient_codes = ("503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED", "overloaded")
+        return any(code in err_str for code in transient_codes)
+
+    async def _call_gemini_model(
+        self,
+        model: str,
+        parts: list,
+        system_instruction: str,
+        temperature: float,
+    ) -> str:
+        """Single Gemini call with a 60s timeout."""
+        response = await asyncio.wait_for(
+            self.gemini_client.aio.interactions.create(
+                model=model,
+                input=parts,
+                system_instruction=system_instruction,
+                generation_config={"temperature": temperature},
+                response_format={"type": "text", "mime_type": "application/json"}
+            ),
+            timeout=60.0,
+        )
+        return response.output_text
+
+    async def _call_gemini_with_fallback(
+        self,
+        parts: list,
+        system_instruction: str,
+        temperature: float,
+    ) -> tuple[str, str]:
+        """
+        Tries the primary model, then fallback models.
+        Returns a tuple of (content, model_name).
+        For transient errors (503, 429) retries up to 3 times with exponential backoff
+        before moving to the next model in the chain.
+        """
+        models_to_try = [self.model] + self.fallback_models
+        last_error: Optional[Exception] = None
+
+        for attempt_model in models_to_try:
+            for retry in range(3):
+                try:
+                    content = await self._call_gemini_model(
+                        attempt_model, 
+                        parts, 
+                        system_instruction, 
+                        temperature
+                    )
+                    logger.info(f"[LLM] Success with model: {attempt_model} (attempt {retry + 1})")
+                    return content, attempt_model
+                except Exception as e:
+                    err_str = str(e)
+                    last_error = e
+                    if self._is_transient_error(err_str) and retry < 2:
+                        wait = 2 ** retry  # 1s, then 2s
+                        logger.warning(
+                            f"[LLM] {attempt_model} transient error (attempt {retry + 1}/3), "
+                            f"retrying in {wait}s: {e}"
+                        )
+                        await asyncio.sleep(wait)
+                    else:
+                        logger.warning(f"[LLM] {attempt_model} failed, moving to next model: {e}")
+                        break  # try next model
+
+        raise last_error or Exception("All Gemini models in the fallback chain failed.")
+
     async def parse_unstructured_text(
         self,
         raw_text: str,
@@ -74,8 +144,8 @@ class LLMParser:
         mime_type: str = "image/jpeg"
     ) -> Dict[str, Any]:
         """
-        Calls the LLM API via Hugging Face InferenceClient (or OpenAI client)
-        to extract complex declarations that deterministic regex could not resolve.
+        Calls the LLM API to extract complex declarations that deterministic regex
+        could not resolve. Uses Gemini with fallback chain, or HF/OpenAI clients.
         """
         if not self.is_configured():
             return {}
@@ -121,36 +191,28 @@ Return JSON:
 
         try:
             content = ""
+            actual_model = self.model  # Default, might change if fallback succeeds
             if self.mode == "gemini":
                 logger.info(f"[LLM] Sending request to Gemini model: {self.model}")
                 logger.info(f"[LLM] Missing fields requested: {missing_fields}")
 
-                # Build content parts: optional image first, then text prompt
-                parts: list[genai_types.Part] = []
+                # Build input parts
+                parts = []
                 if image_bytes:
+                    import base64
+                    b64_data = base64.b64encode(image_bytes).decode("utf-8")
                     logger.info(f"[LLM] Attaching image ({len(image_bytes)} bytes) to Gemini prompt")
-                    parts.append(genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type))
-                parts.append(genai_types.Part.from_text(text=user_prompt))
+                    parts.append({"type": "image", "data": b64_data, "mime_type": mime_type})
+                parts.append({"type": "text", "text": user_prompt})
 
-                config = genai_types.GenerateContentConfig(
+                content, actual_model = await self._call_gemini_with_fallback(
+                    parts=parts,
                     system_instruction=system_prompt,
-                    temperature=0.1,
-                    response_mime_type="application/json",
+                    temperature=0.1
                 )
-
-                response = await asyncio.wait_for(
-                    self.gemini_client.aio.models.generate_content(
-                        model=self.model,
-                        contents=[genai_types.Content(role="user", parts=parts)],
-                        config=config,
-                    ),
-                    timeout=30.0,
-                )
-                content = response.text
                 logger.info(f"[LLM] Raw response:\n{content}")
-                
+
             elif self.hf_client:
-                # Option A: Hugging Face AsyncInferenceClient
                 logger.info(f"[LLM] Sending request to Hugging Face model: {self.model}")
                 logger.info(f"[LLM] Missing fields requested: {missing_fields}")
                 response = await asyncio.wait_for(self.hf_client.chat.completions.create(
@@ -161,8 +223,8 @@ Return JSON:
                 ), timeout=30.0)
                 content = response.choices[0].message.content or ""
                 logger.info(f"[LLM] Raw response:\n{content}")
+
             elif self.openai_client:
-                # Option B: OpenAI-compatible client
                 logger.info(f"[LLM] Sending request to OpenAI-compatible endpoint, model: {self.model}")
                 logger.info(f"[LLM] Missing fields requested: {missing_fields}")
                 response = await asyncio.wait_for(self.openai_client.chat.completions.create(
@@ -204,7 +266,7 @@ Return JSON:
                                 "raw_text": str(date_val),
                                 "confidence": None,
                                 "is_deterministic": False,
-                                "source": f"LLM ({self.model})",
+                                "source": f"LLM ({actual_model})",
                             }
                     continue
 
@@ -217,7 +279,7 @@ Return JSON:
                     "raw_text": json.dumps(v) if isinstance(v, (dict, list)) else str(v),
                     "confidence": None,
                     "is_deterministic": False,
-                    "source": f"LLM ({self.model})",
+                    "source": f"LLM ({actual_model})",
                 }
 
             logger.info(f"[LLM] Formatted declarations keys: {list(formatted_declarations.keys())}")

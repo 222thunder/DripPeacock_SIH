@@ -256,7 +256,7 @@ export async function fetchWithHandleError<T = unknown>(url: string, options?: R
   }
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && !url.includes('/auth/login')) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
         localStorage.removeItem('role');

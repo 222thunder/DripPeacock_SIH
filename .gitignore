@@ -84,3 +84,7 @@ coverage.xml
 
 # App-specific uploads
 backend/uploads/
+# Antigravity / AI Agent Files
+.agents/
+skills-lock.json
+.gemini/
