@@ -3,7 +3,8 @@ import os
 import json
 import logging
 from typing import Dict, Any, List, Optional
-import google.generativeai as genai
+from google import genai
+from google.genai import types as genai_types
 from huggingface_hub import AsyncInferenceClient
 from openai import AsyncOpenAI
 from dotenv import load_dotenv
@@ -30,10 +31,10 @@ class LLMParser:
         self.openai_client: Optional[AsyncOpenAI] = None
 
         if self.gemini_key and (self.provider == "gemini" or not self.provider):
-            genai.configure(api_key=self.gemini_key)
+            self.gemini_client = genai.Client(api_key=self.gemini_key)
             self.mode = "gemini"
-            self.model = os.getenv("LLM_MODEL", "gemini-1.5-flash")
-            logger.info(f"LLMParser initialized with Gemini API for model: {self.model}")
+            self.model = os.getenv("LLM_MODEL", "gemini-2.0-flash")
+            logger.info(f"LLMParser initialized with Gemini API (google.genai) for model: {self.model}")
             return
 
         # Check if HF Token is set or LLM_API_KEY starts with 'hf_'
@@ -123,19 +124,28 @@ Return JSON:
             if self.mode == "gemini":
                 logger.info(f"[LLM] Sending request to Gemini model: {self.model}")
                 logger.info(f"[LLM] Missing fields requested: {missing_fields}")
-                
-                # We use the generate_content_async for async support
-                model = genai.GenerativeModel(self.model, system_instruction=system_prompt)
-                
-                prompt_parts = [user_prompt]
+
+                # Build content parts: optional image first, then text prompt
+                parts: list[genai_types.Part] = []
                 if image_bytes:
                     logger.info(f"[LLM] Attaching image ({len(image_bytes)} bytes) to Gemini prompt")
-                    prompt_parts.insert(0, {"mime_type": mime_type, "data": image_bytes})
-                
-                response = await asyncio.wait_for(model.generate_content_async(
-                    prompt_parts, 
-                    generation_config={"temperature": 0.1, "response_mime_type": "application/json"}
-                ), timeout=30.0)
+                    parts.append(genai_types.Part.from_bytes(data=image_bytes, mime_type=mime_type))
+                parts.append(genai_types.Part.from_text(text=user_prompt))
+
+                config = genai_types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.1,
+                    response_mime_type="application/json",
+                )
+
+                response = await asyncio.wait_for(
+                    self.gemini_client.aio.models.generate_content(
+                        model=self.model,
+                        contents=[genai_types.Content(role="user", parts=parts)],
+                        config=config,
+                    ),
+                    timeout=30.0,
+                )
                 content = response.text
                 logger.info(f"[LLM] Raw response:\n{content}")
                 
