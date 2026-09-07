@@ -18,8 +18,8 @@ interface ConfidenceMeterProps {
 export function ConfidenceMeter({ confidence, className, showText = true }: ConfidenceMeterProps) {
   if (confidence === null || confidence === undefined) {
     return (
-      <span className={cn("text-[10px] font-bold uppercase tracking-wide bg-zinc-200 text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300 px-1.5 py-0.5 rounded-md", className)}>
-        N/A
+      <span className={cn("text-[10px] font-medium text-zinc-500", className)}>
+        Unscored
       </span>
     );
   }
@@ -28,19 +28,19 @@ export function ConfidenceMeter({ confidence, className, showText = true }: Conf
   const percentage = Math.round(value * 100);
 
   let color = 'bg-red-500';
-  let badgeColor = 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400';
+  let textColor = 'text-red-700 dark:text-red-400';
 
   if (value > 0.9) {
     color = 'bg-green-500';
-    badgeColor = 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400';
+    textColor = 'text-green-700 dark:text-green-400';
   } else if (value >= 0.7) {
     color = 'bg-amber-500';
-    badgeColor = 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400';
+    textColor = 'text-amber-700 dark:text-amber-400';
   }
 
   return (
-    <div className={cn("flex items-center gap-2", className)} title={`Confidence: ${percentage}%`}>
-      <div className="relative w-12 h-1.5 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
+    <div className={cn("flex items-center gap-1.5", className)} title={`Confidence: ${percentage}%`}>
+      <div className="relative w-10 h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
         <motion.div
           initial={{ width: 0 }}
           animate={{ width: `${percentage}%` }}
@@ -49,7 +49,7 @@ export function ConfidenceMeter({ confidence, className, showText = true }: Conf
         />
       </div>
       {showText && (
-        <span className={cn("text-[10px] font-semibold px-1.5 py-0.5 rounded-md", badgeColor)}>
+        <span className={cn("text-[10px] font-bold tabular-nums", textColor)}>
           {percentage}%
         </span>
       )}

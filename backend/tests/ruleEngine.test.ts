@@ -114,3 +114,46 @@ test('MANDATORY_FIELDS matches the schema keys produced by the AI service', () =
   assert.ok(MANDATORY_FIELDS.includes('consumer_care'));
   assert.ok(MANDATORY_FIELDS.includes('commodity_name'));
 });
+
+test('font size / readability: legible region at high OCR confidence -> DETECTED', () => {
+  const findings = evaluateRules({
+    mrp: field({ amount: 120, currency: 'INR', inclusive_of_taxes: true }, 0.98, {
+      bounding_box: { x: 0, y: 0, width: 100, height: 22 },
+    }),
+  });
+  const readability = findings.find((f) => f.field === 'mrp_readability');
+  assert.equal(readability?.status, 'DETECTED');
+  assert.equal(readability?.ruleId, 'LM-RULE-3-FONT');
+  assert.ok((readability?.explanation || '').includes('legible'));
+});
+
+test('font size / readability: no text region -> UNABLE_TO_VERIFY (never a confirmed violation)', () => {
+  const findings = evaluateRules({
+    net_quantity: field({ value: 250, unit: 'g' }, 0.95, { bounding_box: null }),
+  });
+  const readability = findings.find((f) => f.field === 'net_quantity_readability');
+  assert.equal(readability?.status, 'UNABLE_TO_VERIFY');
+  assert.equal(readability?.requiresHumanReview, true);
+});
+
+test('font size / readability: missing region and confidence renders readable observed text (no "n/apx")', () => {
+  const findings = evaluateRules({
+    consumer_care: field({ phone: '080-6614-1234' }, null, { bounding_box: null }),
+  });
+  const readability = findings.find((f) => f.field === 'consumer_care_readability');
+  assert.equal(readability?.status, 'UNABLE_TO_VERIFY');
+  assert.ok((readability?.observedValue || '').includes('Text height not measurable'), 'observed text must be readable');
+  assert.ok((readability?.observedValue || '').includes('OCR conf not available'));
+  assert.ok(!(readability?.observedValue || '').includes('n/apx'));
+});
+
+test('font size / readability: very small text region -> CONFIRMED_NON_COMPLIANT (review required)', () => {
+  const findings = evaluateRules({
+    mrp: field({ amount: 120, currency: 'INR', inclusive_of_taxes: true }, 0.95, {
+      bounding_box: { x: 0, y: 0, width: 40, height: 5 },
+    }),
+  });
+  const readability = findings.find((f) => f.field === 'mrp_readability');
+  assert.equal(readability?.status, 'CONFIRMED_NON_COMPLIANT');
+  assert.equal(readability?.requiresHumanReview, true);
+});

@@ -114,8 +114,17 @@ const InspectionSchema: Schema = new Schema(
     reviewStatus: { type: String },
     findings: [FindingSchema],
     reviewedFindings: { type: Map, of: ReviewEntrySchema, default: {} },
+    finalizedBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    finalizedName: { type: String },
+    finalizedAt: { type: Date },
   },
   { timestamps: true }
 );
+
+InspectionSchema.index({ createdAt: -1 });
+InspectionSchema.index({ status: 1 });
+InspectionSchema.index({ inspectorId: 1 });
+InspectionSchema.index({ productId: 1 });
+InspectionSchema.index({ category: 1 });
 
 export const Inspection = mongoose.models.Inspection || mongoose.model<IInspection>('Inspection', InspectionSchema);

@@ -38,8 +38,9 @@ export default function ImageDropZone({
     const maxSizeBytes = maxSizeMB * 1024 * 1024;
 
     for (const file of files) {
-      if (!file.type.startsWith('image/')) {
-        setError(`File ${file.name} is not an image.`);
+      const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        setError(`File ${file.name} has unsupported type. Only JPEG, PNG, and WebP are accepted.`);
         continue;
       }
       if (file.size > maxSizeBytes) {

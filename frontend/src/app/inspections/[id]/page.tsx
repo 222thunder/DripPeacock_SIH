@@ -3,9 +3,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter, useParams } from 'next/navigation';
-import { ArrowLeft, FileText, Loader2, Scale, ShieldCheck, Clock, Scan } from 'lucide-react';
-import { apiClient, type Finding, type ReviewEntry, type HumanReviewDecision, type DeclarationValue } from '@/lib/api';
+import { ArrowLeft, FileText, Loader2, Clock, Scan } from 'lucide-react';
+import { apiClient, getStoredRole, type Finding, type ReviewEntry, type HumanReviewDecision, type DeclarationValue } from '@/lib/api';
 import { StatusBadge, type ComplianceStatus } from '@/components/findings/StatusBadge';
+import { Badge } from '@/components/Badge';
 import { ConfidenceMeter } from '@/components/findings/ConfidenceMeter';
 import { countStatuses, overallStatus } from '@/lib/compliance';
 import { ExtractedDeclarations } from '@/components/findings/ExtractedDeclarations';
@@ -54,10 +55,7 @@ const formatFieldName = (key: string): string => {
     packer: 'Packer',
   };
   if (overrides[key]) return overrides[key];
-  return key
-    .split('_')
-    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ');
+  return key.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
 };
 
 export default function InspectionDetailPage() {
@@ -67,27 +65,35 @@ export default function InspectionDetailPage() {
   const [inspection, setInspection] = useState<Inspection | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeEvidence, setActiveEvidence] = useState<Finding | null>(null);
+  const [finalizing, setFinalizing] = useState(false);
+  const role = getStoredRole();
+  const canFinalize = ['SUPERVISOR', 'ADMIN'].includes(role || '');
+
+  const handleFinalize = async () => {
+    if (!inspection?._id || finalizing) return;
+    setFinalizing(true);
+    try {
+      const updated = await apiClient.finalizeInspection(inspection._id);
+      setInspection(updated as unknown as Inspection);
+    } catch (err: unknown) {
+      alert('Failed to finalize: ' + (err instanceof Error ? err.message : String(err)));
+    } finally {
+      setFinalizing(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
     let cancelled = false;
-    apiClient
-      .getInspection(id)
-      .then((data) => {
-        if (cancelled) return;
-        setInspection(data);
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : 'Could not load inspection.');
-      });
-    return () => {
-      cancelled = true;
-    };
+    apiClient.getInspection(id).then((data) => {
+      if (!cancelled) setInspection(data);
+    }).catch((err: unknown) => {
+      if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load inspection.');
+    });
+    return () => { cancelled = true; };
   }, [id]);
 
   const isFetching = !!id && !inspection && !error;
-
   const declarations = inspection?.declarations || inspection?.extractedDeclarations || {};
   const findings = inspection?.findings || [];
   const status = inspection?.status || 'PENDING';
@@ -95,6 +101,7 @@ export default function InspectionDetailPage() {
   const summaryOverall = useMemo(() => overallStatus(counts), [counts]);
   const reviewed = inspection?.reviewedFindings || {};
   const findingKey = (f: Finding) => `${f.ruleId}:${f.field}`;
+  const pendingReviews = findings.filter(f => f.requiresHumanReview && !reviewed[findingKey(f)]).length;
 
   const handleReport = () => {
     if (!inspection?._id) return;
@@ -107,269 +114,259 @@ export default function InspectionDetailPage() {
       const updated = await apiClient.reviewFinding(inspection._id, findingId, decision, comment);
       setInspection(updated as unknown as Inspection);
     } catch (err: unknown) {
-      console.error('Failed to save review:', err);
-      alert('Failed to save review: ' + (err instanceof Error ? err.message : String(err)));
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('already been reviewed')) {
+        try {
+          const refreshed = await apiClient.getInspection(inspection._id);
+          setInspection(refreshed as unknown as Inspection);
+        } catch (e) {}
+      } else {
+        alert('Failed to save review: ' + msg);
+      }
     }
   };
 
   const handleEditValue = async (key: string, value: unknown) => {
     if (!inspection?._id) return;
     try {
-      const declarationsToUpdate = {
-        [key]: { value },
-      };
-      const updated = await apiClient.updateDeclarations(inspection._id, declarationsToUpdate, inspection.category);
+      const updated = await apiClient.updateDeclarations(inspection._id, { [key]: { value } }, inspection.category);
       setInspection(updated as unknown as Inspection);
     } catch (err: unknown) {
-      console.error('Failed to save field:', err);
       alert('Failed to save field: ' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
-  const pendingReviews = findings.filter(
-    (f) => f.requiresHumanReview && !reviewed[findingKey(f)]
-  ).length;
+  if (isFetching) return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <span className="font-mono text-sm uppercase tracking-widest text-[#A8A29E]">Retrieving dossier...</span>
+    </div>
+  );
 
-  if (isFetching) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-zinc-400" />
-      </div>
-    );
-  }
-
-  if (error || !inspection || !id) {
-    return (
-      <div className="max-w-md mx-auto px-6 py-24 text-center">
-        <Scale className="w-12 h-12 text-zinc-300 mx-auto mb-4" />
-        <h2 className="text-xl font-semibold text-zinc-900 mb-2">Could not load inspection</h2>
-        <p className="text-zinc-500 mb-6">{error || 'Inspection not found.'}</p>
-        <button
-          onClick={() => router.push('/dashboard')}
-          className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors"
-        >
-          Back to Dashboard
-        </button>
-      </div>
-    );
-  }
+  if (error || !inspection || !id) return (
+    <div className="max-w-md mx-auto px-6 py-32 text-center space-y-6">
+      <h2 className="font-display text-3xl text-[#1C1B1A] dark:text-[#F9F8F6]">Record Not Found</h2>
+      <p className="font-sans text-sm text-[#57534E] dark:text-[#A8A29E]">{error || 'Inspection not found.'}</p>
+      <button onClick={() => router.push('/dashboard')} className="border border-[#1C1B1A] dark:border-[#F9F8F6] px-6 py-3 text-xs uppercase tracking-widest font-semibold hover:bg-[#1C1B1A] hover:text-[#F9F8F6] dark:hover:bg-[#F9F8F6] dark:hover:text-[#1C1B1A] transition-colors">
+        Return to Ledger
+      </button>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 md:p-12">
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => router.back()}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-zinc-700 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors active:scale-[0.97]"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back
-            </button>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">
-                Inspection {inspection.inspectionId}
-              </h1>
-              <p className="text-zinc-500 dark:text-zinc-400 text-sm flex items-center gap-1.5 mt-1">
-                <Clock className="w-3.5 h-3.5" />
-                {inspection.createdAt
-                  ? new Date(inspection.createdAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
-                  : 'Unknown date'}
-                {inspection.reviewStatus && <> · Review: {inspection.reviewStatus}</>}
-                <> · Inspector: {
-                  !inspection.inspectorId ? 'Inspector not recorded' :
-                  typeof inspection.inspectorId === 'string' ? inspection.inspectorId :
-                  (inspection.inspectorId.name || inspection.inspectorId.email || 'Inspector not recorded')
-                }</>
-              </p>
-              {inspection.productId && (
-                <p className="text-zinc-500 dark:text-zinc-400 text-sm flex items-center gap-1.5 mt-1">
-                  Product: {typeof inspection.productId === 'string' ? 'Unknown Product' : (inspection.productId.name || 'Unknown Product')}
-                </p>
+    <div className="max-w-7xl mx-auto px-6 lg:px-12 py-12 space-y-16">
+      
+      {/* Dossier Header */}
+      <header className="border-b-2 border-[#1C1B1A] dark:border-[#F9F8F6] pb-10">
+        <button onClick={() => router.back()} className="flex items-center gap-2 text-xs uppercase tracking-widest font-bold text-[#57534E] hover:text-[#1C1B1A] dark:text-[#A8A29E] dark:hover:text-[#F9F8F6] mb-8 transition-colors">
+          <ArrowLeft className="w-4 h-4" /> Return
+        </button>
+        
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-8">
+          <div>
+            <span className="font-mono text-sm font-semibold text-[#57534E] dark:text-[#A8A29E] mb-2 block">Dossier / {inspection.inspectionId}</span>
+            <h1 className="font-display text-4xl lg:text-5xl text-[#1C1B1A] dark:text-[#F9F8F6] tracking-tight">
+              {(inspection.productId && typeof inspection.productId === 'object' ? inspection.productId.name : null) || (inspection.extractedDeclarations?.commodity_name?.value as string) || 'Unknown Entity'}
+            </h1>
+            <div className="mt-6 flex flex-wrap gap-x-6 gap-y-2 text-xs font-sans uppercase tracking-widest text-[#57534E] dark:text-[#A8A29E]">
+              <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5" /> {inspection.createdAt ? new Date(inspection.createdAt).toLocaleString('en-GB') : '—'}</span>
+              <span>Inspector: {typeof inspection.inspectorId === 'string' ? inspection.inspectorId : (inspection.inspectorId?.name || 'Unassigned')}</span>
+            </div>
+          </div>
+          
+          <div className="flex flex-col items-start md:items-end gap-4">
+            <StatusBadge status={status as ComplianceStatus} />
+            <div className="flex items-center gap-3">
+              {inspection.reviewStatus && (
+                <span className="text-xs uppercase tracking-widest font-semibold text-[#3F6212] dark:text-[#ECFCCB] border border-[#3F6212] dark:border-[#ECFCCB] px-3 py-2">
+                  Finalized
+                </span>
+              )}
+              <button onClick={handleReport} className="flex items-center gap-2 border border-[#1C1B1A] dark:border-[#F9F8F6] px-5 py-2.5 text-xs uppercase tracking-widest font-semibold hover:bg-[#1C1B1A] hover:text-[#F9F8F6] dark:hover:bg-[#F9F8F6] dark:hover:text-[#1C1B1A] transition-colors">
+                <FileText className="w-4 h-4" /> Generate Report
+              </button>
+              {canFinalize && inspection.reviewStatus !== 'APPROVED' && (
+                <button
+                  onClick={handleFinalize}
+                  disabled={finalizing}
+                  className="flex items-center gap-2 bg-[#1C1B1A] dark:bg-[#F9F8F6] text-[#F9F8F6] dark:text-[#1C1B1A] px-5 py-2.5 text-xs uppercase tracking-widest font-bold transition-colors disabled:opacity-60"
+                >
+                  {finalizing && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Approve &amp; Finalize
+                </button>
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <StatusBadge status={status as ComplianceStatus} />
-            <button
-              onClick={handleReport}
-              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors active:scale-[0.97] shadow-sm shadow-blue-600/20"
-            >
-              <FileText className="w-4 h-4" />
-              View Report
-            </button>
-          </div>
+        </div>
+      </header>
+
+      {/* Grid Composition */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
+        
+        {/* Left Column: Evidence & Declarations */}
+        <div className="lg:col-span-5 space-y-16">
+          
+          {/* Summary Block */}
+          <section className="border-l border-[#1C1B1A] dark:border-[#F9F8F6] pl-6">
+            <h2 className="font-sans text-xs uppercase tracking-widest font-semibold text-[#57534E] dark:text-[#A8A29E] mb-4">Diagnostic Summary</h2>
+            <div className="font-display text-3xl text-[#1C1B1A] dark:text-[#F9F8F6] mb-6">
+              {summaryOverall === 'NON_COMPLIANT' ? 'Non-Compliant' : summaryOverall === 'REVIEW_REQUIRED' ? 'Review Required' : summaryOverall}
+            </div>
+            <div className="flex gap-8">
+              <div>
+                <div className="text-2xl font-mono text-[#3F6212] dark:text-[#ECFCCB]">{counts.pass}</div>
+                <div className="text-[10px] uppercase tracking-widest text-[#57534E] dark:text-[#A8A29E] font-semibold mt-1">Pass</div>
+              </div>
+              <div>
+                <div className="text-2xl font-mono text-[#9A3412] dark:text-[#FFEDD5]">{counts.review}</div>
+                <div className="text-[10px] uppercase tracking-widest text-[#57534E] dark:text-[#A8A29E] font-semibold mt-1">Review</div>
+              </div>
+              <div>
+                <div className="text-2xl font-mono text-[#991B1B] dark:text-[#FEE2E2]">{counts.fail}</div>
+                <div className="text-[10px] uppercase tracking-widest text-[#57534E] dark:text-[#A8A29E] font-semibold mt-1">Fail</div>
+              </div>
+            </div>
+          </section>
+
+          {/* Evidence */}
+          {inspection.images && inspection.images.length > 0 && (
+            <section>
+              <h2 className="font-sans text-xs uppercase tracking-widest font-semibold text-[#57534E] dark:text-[#A8A29E] mb-6 border-b border-[#E7E5E4] dark:border-[#292524] pb-2">Material Evidence</h2>
+              <div className="space-y-4">
+                {inspection.images.map((img, i) => (
+                  <div key={i} className="relative w-full aspect-[4/3] bg-[#F5F5F4] dark:bg-[#1C1B1A] border border-[#E7E5E4] dark:border-[#292524]">
+                    {img.startsWith('http') || img.startsWith('data:') ? (
+                      <Image src={img} alt={`Evidence ${i + 1}`} fill unoptimized className="object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-xs font-mono text-[#A8A29E]">{img}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Extracted Data */}
+          <section>
+            <h2 className="font-sans text-xs uppercase tracking-widest font-semibold text-[#57534E] dark:text-[#A8A29E] mb-6 border-b border-[#E7E5E4] dark:border-[#292524] pb-2">Extracted Topology</h2>
+            <div className="bg-[#FFFFFF] dark:bg-[#1C1B1A] p-6 border border-[#E7E5E4] dark:border-[#292524]">
+              <ExtractedDeclarations declarations={declarations as unknown as Record<string, DeclarationValue>} missing_fields={inspection.missing_fields || []} onSaveField={handleEditValue} />
+            </div>
+          </section>
+
         </div>
 
-        {/* Evidence Images */}
-        {inspection.images && inspection.images.length > 0 && (
-          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/50 dark:border-zinc-800/50 rounded-3xl p-6">
-            <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50 mb-4">
-              Inspection Evidence
-            </h2>
-            <div className="flex gap-4 overflow-x-auto pb-2 snap-x">
-              {inspection.images.map((img, i) => (
-                <div key={i} className="relative shrink-0 w-64 h-64 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 snap-center bg-zinc-100 dark:bg-zinc-900">
-                  {img.startsWith('http') || img.startsWith('data:') ? (
-                    <Image
-                      src={img}
-                      alt={`Evidence ${i + 1}`}
-                      fill
-                      unoptimized
-                      sizes="256px"
-                      className="object-cover"
-                    />
-                  ) : (
-                    <div className="absolute inset-0 flex items-center justify-center text-zinc-400 text-sm">
-                      {img}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Summary */}
-        <div className={`rounded-3xl border p-6 flex flex-wrap items-center justify-between gap-4 ${summaryOverall === 'COMPLIANT' ? 'bg-green-50/80 dark:bg-green-900/20 border-green-200 dark:border-green-800/50' : summaryOverall === 'NON_COMPLIANT' ? 'bg-red-50/80 dark:bg-red-900/20 border-red-200 dark:border-red-800/50' : summaryOverall === 'REVIEW_REQUIRED' ? 'bg-amber-50/80 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/50' : 'bg-zinc-50 border-zinc-200 dark:bg-zinc-900/50 dark:border-zinc-800'}`}>
-          <div>
-            <div className="flex items-center gap-2 text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-1">
-              <ShieldCheck className="w-4 h-4" /> Rule Checks Summary
-            </div>
-            <div className={`text-2xl font-bold tracking-tight ${summaryOverall === 'COMPLIANT' ? 'text-green-700 dark:text-green-400' : summaryOverall === 'NON_COMPLIANT' ? 'text-red-700 dark:text-red-400' : summaryOverall === 'REVIEW_REQUIRED' ? 'text-amber-700 dark:text-amber-400' : 'text-zinc-600 dark:text-zinc-400'}`}>
-              {summaryOverall === 'NON_COMPLIANT' ? 'NON-COMPLIANT' : summaryOverall === 'REVIEW_REQUIRED' ? 'REVIEW REQUIRED' : summaryOverall}
-            </div>
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            {pendingReviews > 0 && (
-              <span className="text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2.5 py-1 rounded-full">
-                {pendingReviews} finding{pendingReviews > 1 ? 's' : ''} awaiting inspector verification
-              </span>
-            )}
-            <div className="flex gap-8 text-center">
-            <div>
-              <div className="text-2xl font-bold text-green-600 dark:text-green-400">{counts.pass}</div>
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">Pass</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{counts.review}</div>
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">Review</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-red-600 dark:text-red-400">{counts.fail}</div>
-              <div className="text-[10px] uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">Fail</div>
-            </div>
-          </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Declarations */}
-          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/50 dark:border-zinc-800/50 rounded-3xl p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <ShieldCheck className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-                Extracted Declarations
-              </h2>
-            </div>
-            <ExtractedDeclarations
-              declarations={declarations as unknown as Record<string, DeclarationValue>}
-              missing_fields={inspection.missing_fields || []}
-              onSaveField={handleEditValue}
-            />
-          </div>
-
-          {/* Findings */}
-          <div className="bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/50 dark:border-zinc-800/50 rounded-3xl p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <Scale className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-                Rule Findings
-              </h2>
-            </div>
+        {/* Right Column: Findings Ledger */}
+        <div className="lg:col-span-7">
+          <section>
+            <h2 className="font-sans text-xs uppercase tracking-widest font-semibold text-[#57534E] dark:text-[#A8A29E] mb-6 border-b border-[#1C1B1A] dark:border-[#F9F8F6] pb-2">Legislative Findings</h2>
+            
             {findings.length > 0 ? (
-              <div className="space-y-3">
+              <div className="space-y-8">
                 {findings.map((f, i) => {
                   const reviewEntry = reviewed[findingKey(f)] || reviewed[`${f.ruleId}:${f.field}`];
+                  const isPending = f.requiresHumanReview && !reviewEntry;
+
                   return (
-                  <div key={`${f.ruleId}-${f.field}-${i}`} className="border border-zinc-200 dark:border-zinc-800 rounded-xl p-4">
-                    <div className="flex items-center justify-between gap-3 mb-1">
-                      <div className="font-medium text-zinc-900 dark:text-zinc-100 text-sm">
-                        {f.ruleId}
-                        {f.ruleVersion && (
-                          <span className="ml-2 text-xs font-normal text-zinc-500">v{f.ruleVersion}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        {f.severity === 'HIGH' && (
-                          <span className="text-[10px] font-bold uppercase tracking-wide bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 px-2 py-0.5 rounded-full">High</span>
-                        )}
-                        {f.requiresHumanReview && (
-                          <span className="text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 px-2 py-0.5 rounded-full">
-                            Review
+                    <article key={`${f.ruleId}-${f.field}-${i}`} className="border-b border-[#E7E5E4] dark:border-[#292524] pb-8 last:border-0">
+                      
+                      {/* Grid Header with aligned badges */}
+                      <div className="flex flex-col gap-3 mb-6">
+                        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                          <h3 className="font-display text-2xl text-[#1C1B1A] dark:text-[#F9F8F6] m-0">
+                            {f.ruleId} {f.ruleVersion && <span className="font-sans text-xs text-[#A8A29E] font-normal ml-2 tracking-widest">v{f.ruleVersion}</span>}
+                          </h3>
+                          <StatusBadge status={f.status} showIcon={false} />
+                        </div>
+                        
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="font-mono text-xs text-[#57534E] dark:text-[#A8A29E]">
+                            Field: {formatFieldName(f.field)} {f.sourceReference && `· Ref: ${f.sourceReference}`}
                           </span>
-                        )}
-                        <StatusBadge status={f.status} showIcon={false} />
+                          
+                          {f.severity === 'HIGH' && (
+                            <Badge className="border-[#991B1B] text-[#991B1B] bg-[#FEE2E2] dark:border-[#FCA5A5] dark:text-[#FCA5A5] dark:bg-[#991B1B]/30">High Priority</Badge>
+                          )}
+                          
+                          {f.requiresHumanReview && (
+                            <Badge className="border-[#9A3412] text-[#9A3412] bg-[#FFEDD5] dark:border-[#FFEDD5] dark:text-[#FFEDD5] dark:bg-[#9A3412]/30">
+                              Human Verification
+                            </Badge>
+                          )}
+
+                          {isPending && (
+                            <Badge className="border-[#57534E] text-[#57534E] bg-[#F5F5F4] dark:border-[#A8A29E] dark:text-[#A8A29E] dark:bg-[#292524]">
+                              Pending
+                            </Badge>
+                          )}
+                          
+                          {reviewEntry && (
+                            <Badge className={reviewEntry.reviewStatus === 'VERIFIED' ? "border-[#3F6212] text-[#3F6212] bg-[#ECFCCB] dark:border-[#ECFCCB] dark:text-[#ECFCCB] dark:bg-[#3F6212]/30" : "border-[#991B1B] text-[#991B1B] bg-[#FEE2E2] dark:border-[#FCA5A5] dark:text-[#FCA5A5] dark:bg-[#991B1B]/30"}>
+                              {reviewEntry.reviewStatus === 'VERIFIED' ? 'Verified' : 'Rejected'}
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-xs text-zinc-500 dark:text-zinc-400 mb-2">
-                      {formatFieldName(f.field)}
-                      {f.sourceReference && <span className="ml-2">{f.sourceReference}</span>}
-                    </div>
-                    {f.requiresHumanReview && (
-                      <HumanReviewPanel
-                        finding={f}
-                        reviewEntry={reviewEntry}
-                        declarationKey={f.field}
-                        declarationValue={(declarations as Record<string, RowDeclaration>)[f.field]?.value}
-                        onVerify={(comment) => handleReviewFinding(findingKey(f), 'VERIFIED', comment)}
-                        onReject={(comment) => handleReviewFinding(findingKey(f), 'REJECTED', comment)}
-                        onEditValue={handleEditValue}
-                        onViewEvidence={() => setActiveEvidence(f)}
-                      />
-                    )}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-2">
-                      <div>
-                        <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-0.5">Observed</div>
-                        <div className="text-zinc-800 dark:text-zinc-200 font-medium break-words">{f.observedValue || '—'}</div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4 mb-6 bg-[#F5F5F4] dark:bg-[#121212] p-4 border-l-2 border-[#1C1B1A] dark:border-[#F9F8F6]">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-widest font-bold text-[#78716C] mb-1">Observed</div>
+                          <div className="font-sans text-sm text-[#1C1B1A] dark:text-[#F9F8F6]">{f.observedValue || '—'}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-widest font-bold text-[#78716C] mb-1">Expected</div>
+                          <div className="font-sans text-sm text-[#1C1B1A] dark:text-[#F9F8F6]">{f.expectedCondition || '—'}</div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-0.5">Expected</div>
-                        <div className="text-zinc-800 dark:text-zinc-200 font-medium break-words">{f.expectedCondition || '—'}</div>
-                      </div>
-                    </div>
-                    {f.explanation && (
-                      <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">{f.explanation}</p>
-                    )}
-                    <div className="mt-3 flex items-center justify-between gap-3 text-xs text-zinc-400">
-                      <span className="flex items-center gap-1.5">
-                        Confidence
-                        <ConfidenceMeter confidence={f.confidence} showText />
-                      </span>
-                      {f.evidenceImageId && (
-                        <a href={f.evidenceImageId} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-teal-700 dark:text-teal-400 hover:underline">
-                          <Scan className="w-3.5 h-3.5" />
-                          {f.boundingBox ? `Evidence ${f.boundingBox.width}x${f.boundingBox.height}` : 'Evidence image'}
-                        </a>
+
+                      {f.explanation && (
+                        <p className="font-sans text-sm text-[#57534E] dark:text-[#E7E5E4] leading-relaxed mb-6 max-w-prose">
+                          {f.explanation}
+                        </p>
                       )}
-                    </div>
-                  </div>
+
+                      <div className="flex items-center justify-between text-xs text-[#57534E] dark:text-[#A8A29E] font-sans">
+                        <span className="flex items-center gap-2">
+                          System Confidence <ConfidenceMeter confidence={f.confidence} showText />
+                        </span>
+                        {f.evidenceImageId && (
+                          <a href={f.evidenceImageId} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:text-[#1C1B1A] dark:hover:text-[#F9F8F6] transition-colors">
+                            <Scan className="w-3 h-3" />
+                            {f.boundingBox ? `Region [${f.boundingBox.width}x${f.boundingBox.height}]` : 'Source Evidence'}
+                          </a>
+                        )}
+                      </div>
+
+                      {f.requiresHumanReview && !reviewEntry && (
+                        <div className="mt-8 pt-6 border-t border-[#E7E5E4] dark:border-[#292524]">
+                          <HumanReviewPanel
+                            finding={f}
+                            reviewEntry={reviewEntry}
+                            declarationKey={f.field}
+                            declarationValue={(declarations as Record<string, RowDeclaration>)[f.field]?.value}
+                            onVerify={(comment) => handleReviewFinding(findingKey(f), 'VERIFIED', comment)}
+                            onReject={(comment) => handleReviewFinding(findingKey(f), 'REJECTED', comment)}
+                            onEditValue={handleEditValue}
+                            onViewEvidence={() => setActiveEvidence(f)}
+                          />
+                        </div>
+                      )}
+                    </article>
                   );
                 })}
               </div>
             ) : (
-              <p className="text-sm text-zinc-500 dark:text-zinc-400">No findings for this inspection.</p>
+              <p className="font-sans text-sm text-[#57534E] dark:text-[#A8A29E]">No legislative flags generated for this record.</p>
             )}
-          </div>
+          </section>
         </div>
+
       </div>
 
       {activeEvidence && activeEvidence.evidenceImageId && (
         <EvidenceLightbox
           imageUrl={activeEvidence.evidenceImageId}
           boundingBox={activeEvidence.boundingBox}
-          title={`Rule ${activeEvidence.ruleId} — ${formatFieldName(activeEvidence.field)}`}
+          title={`${activeEvidence.ruleId} — ${formatFieldName(activeEvidence.field)}`}
           onClose={() => setActiveEvidence(null)}
         />
       )}

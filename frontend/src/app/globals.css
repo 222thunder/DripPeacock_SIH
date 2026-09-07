@@ -1,53 +1,65 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-primary: #007AFF;
-  --color-success: #34C759;
-  --color-danger: #FF3B30;
-  --color-warning: #FF9500;
-  --color-review: #FF9F0A;
+  /* Editorial Palette */
+  --color-brand-primary: #1C1B1A; /* Charcoal / near black */
+  --color-brand-secondary: #57534E; /* Stone 600 */
+  --color-brand-accent: #78716C; /* Stone 500 */
   
+  --color-surface-ivory: #F9F8F6; /* Warm off-white */
+  --color-surface-paper: #FFFFFF;
+  --color-surface-stone: #F5F5F4; /* Stone 100 */
+  --color-border-subtle: #E7E5E4; /* Stone 200 */
+  --color-border-strong: #1C1B1A;
+
+  --color-surface-dark: #121212;
+  --color-surface-paper-dark: #1C1B1A;
+  --color-border-subtle-dark: #292524; /* Stone 800 */
+  --color-border-strong-dark: #E7E5E4;
+
+  /* Semantic State Colors - Muted */
+  --color-success: #3F6212; /* Lime 800 */
+  --color-success-bg: #ECFCCB; /* Lime 100 */
+  --color-danger: #991B1B; /* Red 800 */
+  --color-danger-bg: #FEE2E2; /* Red 100 */
+  --color-warning: #9A3412; /* Orange 800 */
+  --color-warning-bg: #FFEDD5; /* Orange 100 */
+
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --font-display: var(--font-playfair), ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
 
-  /* Glass Materials */
-  --color-glass-bg: rgba(255, 255, 255, 0.9);
-  --color-glass-border: rgba(0, 0, 0, 0.1);
-  --color-glass-bg-dark: rgba(28, 28, 30, 0.9);
-  --color-glass-border-dark: rgba(255, 255, 255, 0.1);
+  /* Restrained geometry - almost zero radius for editorial feel */
+  --radius-sm: 0px;
+  --radius-md: 2px;
+  --radius-lg: 4px;
+  --radius-xl: 8px;
+  --radius-2xl: 12px;
+
+  /* Intentional shadows - flat and stark or non-existent */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 4px 4px 0px 0px rgba(28, 27, 26, 0.1);
+  --shadow-lg: 8px 8px 0px 0px rgba(28, 27, 26, 0.1);
 }
 
 :root {
-  --background: #ffffff;
-  --foreground: #1c1c1e;
-  --glass-bg: var(--color-glass-bg);
-  --glass-border: var(--color-glass-border);
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
+  --background: var(--color-surface-ivory);
+  --foreground: var(--color-brand-primary);
+  --surface: var(--color-surface-paper);
+  --border: var(--color-border-subtle);
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #000000;
-    --foreground: #f5f5f7;
-    --glass-bg: var(--color-glass-bg-dark);
-    --glass-border: var(--color-glass-border-dark);
+    --background: var(--color-surface-dark);
+    --foreground: #F9F8F6;
+    --surface: var(--color-surface-paper-dark);
+    --border: var(--color-border-subtle-dark);
   }
 }
 
 html {
   scroll-behavior: smooth;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
-  }
-  * {
-    transform: none !important;
-  }
 }
 
 body {
@@ -58,57 +70,32 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Typography utilities */
+/* Typography */
+h1, h2, h3, .font-display {
+  font-family: var(--font-display);
+}
+
 .tracking-tight-heading {
   letter-spacing: -0.02em;
 }
 
-/* Glass Material utilities */
-.glass {
-  background-color: var(--glass-bg);
-  backdrop-filter: blur(28px) saturate(180%);
-  -webkit-backdrop-filter: blur(28px) saturate(180%);
-  border-bottom: 1px solid var(--glass-border);
-}
-
-/* Status colors */
-.status-compliant { color: var(--color-success); }
-.status-non-compliant { color: var(--color-danger); }
-.status-review { color: var(--color-review); }
-.status-na { color: #8E8E93; }
-
-/* Apple-style interactive states */
+/* Subtle Interactive States */
 .active-scale {
-  transition: transform 0.15s cubic-bezier(0, 0, 0.2, 1);
+  transition: transform 0.1s ease-out;
 }
 .active-scale:active {
-  transform: scale(0.97);
+  transform: scale(0.99);
 }
 
-/* Transitions */
-.transition-spring {
-  transition-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
-  transition-duration: 400ms;
+.hover-lift {
+  transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-
-/* Print / PDF export */
-@media print {
-  @page {
-    size: A4;
-    margin: 14mm;
-  }
-
-  body {
-    background: #ffffff !important;
-  }
-
-  * {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-  }
-
-  /* Force light background so dark-mode themes don't break print output */
-  html, body {
-    color-scheme: light;
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 4px 4px 0px 0px rgba(28, 27, 26, 0.15);
+}
+@media (prefers-color-scheme: dark) {
+  .hover-lift:hover {
+    box-shadow: 4px 4px 0px 0px rgba(249, 248, 246, 0.15);
   }
 }

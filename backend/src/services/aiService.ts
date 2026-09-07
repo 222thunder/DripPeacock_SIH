@@ -21,10 +21,12 @@ export const analyzeImage = async (
   const response = await fetch(`${aiServiceUrl}/analyze`, {
     method: 'POST',
     body: formData,
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!response.ok) {
-    throw new Error(`AI Service /analyze failed with status ${response.status}`);
+    const detail = await response.text().catch(() => '');
+    throw new Error(`AI Service /analyze failed (HTTP ${response.status}): ${detail.slice(0, 200)}`);
   }
 
   return response.json();
@@ -39,10 +41,12 @@ export const parseText = async (rawText: string): Promise<any> => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ text: rawText }),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!response.ok) {
-    throw new Error(`AI Service /parse failed with status ${response.status}`);
+    const detail = await response.text().catch(() => '');
+    throw new Error(`AI Service /parse failed (HTTP ${response.status}): ${detail.slice(0, 200)}`);
   }
 
   return response.json();

@@ -141,11 +141,11 @@ export function FindingsList({ findings = [], reviewed = {}, onReviewDecision }:
                   exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
                   transition={{ type: "spring" as const, bounce: 0, duration: 0.4 }}
                   key={key}
-                  className="p-5 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/50 dark:border-zinc-800/50 rounded-2xl shadow-sm hover:shadow-md transition-shadow"
+                  className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start justify-between mb-3">
                     <div className="pr-4 min-w-0">
-                      <h4 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight break-words">
+                      <h4 className="text-base font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight break-words whitespace-nowrap overflow-hidden text-ellipsis">
                         {finding.rule_description || `Rule ${finding.ruleId} — ${finding.field.replace(/_/g, ' ')}`}
                       </h4>
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
@@ -159,7 +159,17 @@ export function FindingsList({ findings = [], reviewed = {}, onReviewDecision }:
                             High
                           </span>
                         )}
-                        {finding.requiresHumanReview && (
+                        {decision?.reviewStatus === 'VERIFIED' && (
+                          <span className="inline-block text-xs font-extrabold uppercase tracking-wide bg-green-500 text-white px-2.5 py-1 rounded-full border-2 border-green-600 shadow-sm">
+                            Verified
+                          </span>
+                        )}
+                        {decision?.reviewStatus === 'REJECTED' && (
+                          <span className="inline-block text-xs font-extrabold uppercase tracking-wide bg-rose-500 text-white px-2.5 py-1 rounded-full border-2 border-rose-600 shadow-sm">
+                            Rejected
+                          </span>
+                        )}
+                        {finding.requiresHumanReview && !decision && (
                           <span className="inline-block text-xs font-extrabold uppercase tracking-wide bg-amber-500 text-white px-2.5 py-1 rounded-full border-2 border-amber-600 shadow-sm">
                             Human Review Required
                           </span>
@@ -211,7 +221,7 @@ export function FindingsList({ findings = [], reviewed = {}, onReviewDecision }:
                     )}
                   </div>
 
-                  {finding.requiresHumanReview && onReviewDecision && (
+                  {finding.requiresHumanReview && !decision && onReviewDecision && (
                     <ReviewControls
                       findingKey={key}
                       decision={decision}

@@ -2,93 +2,123 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ScanLine, Scale, FileCheck, ArrowRight } from 'lucide-react';
-
-const containerVariants = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: {
-      staggerChildren: 0.1,
-    },
-  },
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      type: 'spring' as const,
-      bounce: 0,
-      duration: 0.4,
-    },
-  },
-};
+import { ArrowRight, Mail, ExternalLink } from 'lucide-react';
 
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 md:p-12 overflow-hidden">
-      <motion.div 
-        className="max-w-5xl w-full flex flex-col items-center text-center space-y-12"
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-      >
-        <motion.div variants={itemVariants} className="space-y-6 max-w-3xl">
-          <h1 className="text-[clamp(2.5rem,6vw,4.5rem)] font-bold leading-[1.05] tracking-[-0.03em] text-zinc-900 dark:text-zinc-50">
-            Legal Metrology Compliance
-          </h1>
-          <p className="text-xl md:text-2xl text-zinc-600 dark:text-zinc-400 leading-relaxed font-medium">
-            AI-powered package label inspection for Legal Metrology (Packaged Commodities) Rules, 2011
+    <main className="min-h-[calc(100vh-4rem)] flex flex-col items-center">
+      
+      {/* Hero Section - Asymmetric */}
+      <section className="w-full max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-32 grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-8 items-start">
+        
+        <div className="lg:col-span-8 space-y-8">
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+          >
+            <p className="text-xs uppercase tracking-[0.2em] font-semibold text-[#57534E] dark:text-[#A8A29E] mb-6">
+              Platform Edition 2026
+            </p>
+            <h1 className="font-display text-5xl md:text-7xl lg:text-8xl leading-[0.95] tracking-tight text-[#1C1B1A] dark:text-[#F9F8F6]">
+              Standardizing <br/><i className="italic text-[#78716C]">Metrology</i> Compliance.
+            </h1>
+          </motion.div>
+        </div>
+
+        <div className="lg:col-span-4 lg:pt-24 space-y-8">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+          >
+            <p className="text-base text-[#57534E] dark:text-[#E7E5E4] leading-relaxed font-sans mb-8 border-l border-[#1C1B1A] dark:border-[#F9F8F6] pl-6">
+              AI-assisted visual inspection designed for scale. We automate the verification of the Legal Metrology (Packaged Commodities) Rules, 2011 to ensure absolute market confidence.
+            </p>
+
+            <div className="flex flex-col gap-4">
+              <Link href="/scanner" className="group">
+                <button className="w-full flex items-center justify-between px-6 py-4 bg-[#1C1B1A] dark:bg-[#F9F8F6] text-[#F9F8F6] dark:text-[#1C1B1A] font-semibold text-sm uppercase tracking-widest transition-colors hover:bg-[#57534E] dark:hover:bg-[#E7E5E4]">
+                  <span>Initiate Scan</span>
+                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                </button>
+              </Link>
+              <Link href="/dashboard">
+                <button className="w-full flex items-center justify-center px-6 py-4 border border-[#1C1B1A] dark:border-[#F9F8F6] text-[#1C1B1A] dark:text-[#F9F8F6] font-semibold text-sm uppercase tracking-widest transition-colors hover:bg-[#1C1B1A] hover:text-[#F9F8F6] dark:hover:bg-[#F9F8F6] dark:hover:text-[#1C1B1A]">
+                  Platform Dashboard
+                </button>
+              </Link>
+            </div>
+          </motion.div>
+        </div>
+
+      </section>
+
+      {/* Editorial Features Section */}
+      <section className="w-full bg-[#1C1B1A] text-[#F9F8F6] dark:bg-[#F9F8F6] dark:text-[#1C1B1A] py-24 mt-12">
+        <div className="max-w-7xl mx-auto px-6 lg:px-12">
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-x-12 gap-y-16">
+            <FeatureBlock 
+              number="01"
+              title="Optical Extraction"
+              description="Computer vision precision isolates mandatory declarations and manufacturer typography across complex package geometries."
+            />
+            <FeatureBlock 
+              number="02"
+              title="Rule Engine"
+              description="Extracted entities are parsed through an immutable ledger of current legislative frameworks to determine strict compliance."
+            />
+            <FeatureBlock 
+              number="03"
+              title="Audit Continuity"
+              description="Human-in-the-loop verification processes ensure unassailable evidence preservation and official reporting."
+            />
+          </div>
+
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="w-full bg-[#1C1B1A] text-[#F9F8F6] dark:bg-[#F9F8F6] dark:text-[#1C1B1A] border-t border-[#44403C] dark:border-[#D6D3D1] mt-auto">
+        <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+          <div className="space-y-3">
+            <p className="font-sans text-xs uppercase tracking-widest font-semibold text-[#A8A29E] dark:text-[#78716C]">
+              Contact
+            </p>
+            <a
+              href="mailto:sanyamdhawan2007@gmail.com"
+              className="flex items-center gap-3 text-sm font-sans hover:opacity-70 transition-opacity"
+            >
+              <Mail className="w-4 h-4" />
+              sanyamdhawan2007@gmail.com
+            </a>
+            <a
+              href="https://github.com/222thunder"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 text-sm font-sans hover:opacity-70 transition-opacity"
+            >
+              <ExternalLink className="w-4 h-4" />
+              github.com/222thunder
+            </a>
+          </div>
+          <p className="text-xs font-sans text-[#A8A29E] dark:text-[#78716C]">
+            Legal Metrology Compliance System · SIH 2026
           </p>
-        </motion.div>
+        </div>
+      </footer>
 
-        <motion.div variants={itemVariants} className="flex flex-col sm:flex-row gap-4 items-center justify-center">
-          <Link href="/scanner" className="group">
-            <button className="flex items-center gap-2 rounded-full px-8 py-4 bg-blue-500 hover:bg-blue-600 text-white font-semibold text-lg transition-colors active:scale-[0.97]">
-              Start Scanning
-              <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-            </button>
-          </Link>
-          <Link href="/dashboard">
-            <button className="rounded-full px-8 py-4 border border-zinc-300 dark:border-zinc-700 bg-white/50 dark:bg-zinc-900/50 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-900 dark:text-zinc-100 font-semibold text-lg transition-colors active:scale-[0.97] backdrop-blur-md">
-              View Dashboard
-            </button>
-          </Link>
-        </motion.div>
-
-        <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full pt-16">
-          <FeatureCard 
-            icon={<ScanLine className="w-8 h-8 text-blue-500" />}
-            title="Smart OCR"
-            description="Extract text from package labels with Tesseract OCR and AI-powered field extraction."
-          />
-          <FeatureCard 
-            icon={<Scale className="w-8 h-8 text-blue-500" />}
-            title="Rule Engine"
-            description="Automatic compliance checks against Legal Metrology Rules with traceable findings."
-          />
-          <FeatureCard 
-            icon={<FileCheck className="w-8 h-8 text-blue-500" />}
-            title="Evidence & Reports"
-            description="Store inspection evidence, generate PDF reports, and maintain audit trails."
-          />
-        </motion.div>
-      </motion.div>
     </main>
   );
 }
 
-function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+function FeatureBlock({ number, title, description }: { number: string; title: string; description: string }) {
   return (
-    <div className="flex flex-col items-start p-8 rounded-3xl bg-white/70 dark:bg-zinc-900/70 backdrop-blur-2xl border border-zinc-200/50 dark:border-white/10 shadow-sm hover:shadow-md transition-shadow">
-      <div className="p-3 bg-blue-50 dark:bg-blue-500/10 rounded-2xl mb-6">
-        {icon}
-      </div>
-      <h3 className="text-xl font-semibold mb-3 tracking-tight text-zinc-900 dark:text-zinc-100">{title}</h3>
-      <p className="text-zinc-600 dark:text-zinc-400 text-left leading-relaxed">
+    <div className="flex flex-col border-t border-[#57534E] dark:border-[#A8A29E] pt-6">
+      <span className="font-sans text-xs uppercase tracking-widest font-semibold mb-8">{number}</span>
+      <h3 className="font-display text-3xl mb-4 leading-tight">{title}</h3>
+      <p className="font-sans text-sm leading-relaxed opacity-80">
         {description}
       </p>
     </div>

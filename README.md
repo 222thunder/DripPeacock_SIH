@@ -30,8 +30,16 @@ _(To stop the services, simply press `Ctrl+C` in the terminal)._
 
 1. **Smart Scanner:** Upload multiple images (front, back, nutritional label) of a product.
 2. **AI-Powered OCR:** Automatically extracts text and uses AI to map it to structured Legal Metrology fields (MRP, Net Quantity, Manufacturer, etc.).
-3. **Rule Engine Validation:** Checks extracted fields against mandatory rules and flags non-compliance.
-4. **Resilient Backend:** Even if MongoDB isn't running locally on your machine, the backend handles it gracefully to ensure the demo continues working seamlessly.
+3. **Rule Engine Validation:** Versioned, deterministic rules check extracted declarations against the LM (Packaged Commodities) Rules, 2011 — presence, format, tax-inclusive MRP, net quantity, month/year, and font-size/readability — and flag non-compliance.
+4. **Human Verification Workflow:** Inspectors verify or reject findings (with mandatory reason on rejection); the original AI finding is preserved and rules are re-run after review.
+5. **Compliance Reports:** Generate a printable report as **PDF** or **editable DOC**, with evidence regions, confidence, and rule references.
+6. **Role-Based Access:** ADMIN / SUPERVISOR / INSPECTOR. Supervisors approve & finalize inspections; backend enforces permissions.
+7. **Resilient Backend:** Even if MongoDB isn't running locally on your machine, the backend handles it gracefully to ensure the demo continues working seamlessly.
+
+## 📚 Documentation
+
+- [`docs/architecture.md`](docs/architecture.md) — system design, rule engine reference, data flow.
+- [`docs/deployment.md`](docs/deployment.md) — env vars, local run, production notes, tests.
 
 ## 👥 Team
 

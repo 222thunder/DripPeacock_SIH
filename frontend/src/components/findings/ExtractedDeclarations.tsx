@@ -5,6 +5,7 @@ import { FieldEditor } from "./FieldEditor";
 import { motion } from 'framer-motion';
 import { AlertCircle, FileText, LayoutGrid, Scan, Check, X, Edit2, Plus } from 'lucide-react';
 import { ConfidenceMeter } from './ConfidenceMeter';
+import { Badge } from '@/components/Badge';
 import type { DeclarationValue } from '@/lib/api';
 
 interface ExtractedDeclarationsProps {
@@ -126,7 +127,7 @@ export function ExtractedDeclarations({ declarations, missing_fields = [], onSav
     <div className="space-y-8">
       {Object.entries(grouped).map(([groupName, items]) => (
         <div key={groupName} className="space-y-4">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight flex items-center gap-2">
+          <h3 className="font-sans text-xs uppercase tracking-widest font-semibold text-[#1C1B1A] dark:text-[#F9F8F6] flex items-center gap-2">
             <LayoutGrid className="w-4 h-4 text-zinc-400" />
             {groupName}
           </h3>
@@ -141,13 +142,13 @@ export function ExtractedDeclarations({ declarations, missing_fields = [], onSav
               <motion.div
                 key={key}
                 variants={itemVariants}
-                className="group relative flex flex-col h-full p-5 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-xl border border-zinc-200/50 dark:border-zinc-800/50 rounded-2xl shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
+                className="group relative flex flex-col h-full p-5 bg-transparent border border-[#E7E5E4] dark:border-[#292524] rounded-none hover:border-[#1C1B1A] dark:hover:border-[#F9F8F6] transition-all active:scale-[0.98]"
               >
                 <div className="flex justify-between items-start mb-3">
-                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+                  <span className="font-sans text-xs uppercase tracking-widest font-semibold text-[#57534E] dark:text-[#A8A29E] flex items-center gap-2">
                     {formatFieldName(key)}
                     {onSaveField && editingKey !== key && (
-                      <button onClick={() => startEdit(key, data.value)} className="text-indigo-500 hover:text-indigo-600 transition-colors" title="Edit field">
+                      <button onClick={() => startEdit(key, data.value)} className=" hover:text-indigo-600 transition-colors" title="Edit field">
                         <Edit2 className="w-3 h-3" />
                       </button>
                     )}
@@ -155,36 +156,35 @@ export function ExtractedDeclarations({ declarations, missing_fields = [], onSav
 
                   <div className="flex items-center gap-1.5 flex-wrap justify-end ml-2">
                     {data.bounding_box && (
-                      <span
-                        className="inline-flex items-center gap-0.5 text-[10px] font-extrabold uppercase tracking-wide bg-teal-600 text-white px-2 py-0.5 rounded-full shadow-sm border border-teal-700"
+                      <Badge 
+                        className="border-[#3F6212] text-[#3F6212] bg-[#ECFCCB] dark:border-[#ECFCCB] dark:text-[#ECFCCB] dark:bg-[#3F6212]/30"
                         title={`Bounding box: x=${data.bounding_box.x}, y=${data.bounding_box.y}, ${data.bounding_box.width}x${data.bounding_box.height}`}
                       >
-                        <Scan className="w-3 h-3" />
-                        Evidence
-                      </span>
+                        <Scan className="w-3 h-3" /> Evidence
+                      </Badge>
                     )}
                     {data.is_deterministic ? (
-                      <span
-                        className="inline-flex items-center text-[10px] font-extrabold uppercase tracking-wide bg-blue-600 text-white px-2 py-0.5 rounded-full shadow-sm border border-blue-700"
+                      <Badge 
+                        className="border-[#57534E] text-[#57534E] bg-[#F5F5F4] dark:border-[#A8A29E] dark:text-[#A8A29E] dark:bg-[#292524]"
                         title="Extracted by deterministic regex parsing"
                       >
-                        Regex
-                      </span>
+                        Deterministic
+                      </Badge>
                     ) : (
-                      <span
-                        className="inline-flex items-center text-[10px] font-extrabold uppercase tracking-wide bg-purple-600 text-white px-2 py-0.5 rounded-full shadow-sm border border-purple-700"
+                      <Badge 
+                        className="border-[#1C1B1A] text-[#1C1B1A] dark:border-[#F9F8F6] dark:text-[#F9F8F6]"
                         title={data.source ? `Extracted by ${data.source}` : 'Extracted via AI/LLM'}
                       >
-                        AI
-                      </span>
+                        AI Model
+                      </Badge>
                     )}
                     {data.manuallyVerified && (
-                      <span
-                        className="inline-flex items-center text-[10px] font-extrabold uppercase tracking-wide bg-amber-600 text-white px-2 py-0.5 rounded-full shadow-sm border border-amber-700"
+                      <Badge 
+                        className="border-[#9A3412] text-[#9A3412] bg-[#FFEDD5] dark:border-[#FFEDD5] dark:text-[#FFEDD5] dark:bg-[#9A3412]/30"
                         title="Value was manually verified or edited by an inspector"
                       >
-                        Manual Reviewed
-                      </span>
+                        Manual Edit
+                      </Badge>
                     )}
                   </div>
                 </div>
@@ -210,7 +210,7 @@ export function ExtractedDeclarations({ declarations, missing_fields = [], onSav
                       </div>
                     </div>
                   ) : (
-                    <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight break-words">
+                    <div className="font-display text-2xl text-[#1C1B1A] dark:text-[#F9F8F6] tracking-tight break-words">
                       {formatValue(key, data.value)}
                     </div>
                   )}
@@ -237,7 +237,7 @@ export function ExtractedDeclarations({ declarations, missing_fields = [], onSav
 
       {missing_fields.length > 0 && (
         <div className="space-y-4 pt-4 border-t border-zinc-200/50 dark:border-zinc-800/50">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 tracking-tight flex items-center gap-2">
+          <h3 className="font-sans text-xs uppercase tracking-widest font-semibold text-[#1C1B1A] dark:text-[#F9F8F6] flex items-center gap-2">
             <AlertCircle className="w-4 h-4 text-amber-500" />
             Missing Declarations
           </h3>
@@ -252,15 +252,15 @@ export function ExtractedDeclarations({ declarations, missing_fields = [], onSav
               <motion.div
                 key={field}
                 variants={itemVariants}
-                className="flex flex-col h-full gap-3 p-4 bg-zinc-50/50 dark:bg-zinc-800/30 backdrop-blur-xl border border-dashed border-zinc-200 dark:border-zinc-700/50 rounded-2xl opacity-70"
+                className="flex flex-col h-full gap-3 p-4 bg-transparent border border-dashed border-[#E7E5E4] dark:border-[#292524] rounded-none opacity-80"
               >
                 <div className="flex items-start gap-3">
                   <AlertCircle className="w-5 h-5 text-zinc-400 shrink-0 mt-0.5" />
-                  <span className="text-sm font-medium text-zinc-500 dark:text-zinc-400 flex-1">
+                  <span className="font-sans text-xs uppercase tracking-widest font-semibold text-[#57534E] dark:text-[#A8A29E] flex-1">
                     {formatFieldName(field)}
                   </span>
                   {onSaveField && editingKey !== field && (
-                    <button onClick={() => startEdit(field, '')} className="text-indigo-500 hover:text-indigo-600 transition-colors shrink-0" title="Add field">
+                    <button onClick={() => startEdit(field, '')} className=" hover:text-indigo-600 transition-colors shrink-0" title="Add field">
                       <Plus className="w-4 h-4" />
                     </button>
                   )}

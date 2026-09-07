@@ -59,7 +59,7 @@ export default function ScannerView() {
       
       // Call the real API
       const response = await apiClient.analyzeImage(files, category || undefined);
-      console.log('API Response:', response);
+
       
       const totalTime = Date.now() - startTime;
       setTiming({
@@ -129,7 +129,7 @@ export default function ScannerView() {
       setResults(updated);
     } catch (err: unknown) {
       console.error('Failed to save field:', err);
-      alert('Failed to save field: ' + (err instanceof Error ? err.message : String(err)));
+      setReviewError('Failed to save field: ' + (err instanceof Error ? err.message : String(err)));
     }
   };
 
@@ -146,8 +146,8 @@ export default function ScannerView() {
             className="flex-1 flex flex-col items-center justify-center pt-12 pb-24"
           >
             <div className="w-full max-w-3xl bg-white/70 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 ring-1 ring-zinc-100 relative overflow-hidden">
-              <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-blue-400/10 blur-[80px] rounded-full pointer-events-none" />
-              <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 bg-indigo-400/10 blur-[80px] rounded-full pointer-events-none" />
+              <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 bg-blue-400/10 blur-[80px] rounded-md pointer-events-none" />
+              <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 bg-indigo-400/10 blur-[80px] rounded-md pointer-events-none" />
               
               <div className="relative z-10">
                 <ImageDropZone onImagesAccepted={handleImagesAccepted} />
@@ -277,7 +277,7 @@ export default function ScannerView() {
             {/* Header Actions */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white/70 backdrop-blur-xl px-6 py-5 rounded-[2rem] shadow-sm border border-zinc-200/60 sticky top-4 z-20">
               <div className="flex items-center gap-4 mb-4 sm:mb-0">
-                <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 ring-4 ring-white shadow-sm">
+                <div className="w-12 h-12 rounded-md bg-indigo-100 flex items-center justify-center text-indigo-600 ring-4 ring-white shadow-sm">
                   <Check className="w-6 h-6" strokeWidth={2.5} />
                 </div>
                 <div>
@@ -405,18 +405,18 @@ export default function ScannerView() {
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
-              className="flex flex-wrap items-center justify-center gap-6 mt-8 text-xs font-semibold tracking-wide uppercase text-black bg-white py-4 px-8 rounded-full self-center border border-zinc-200 shadow-md"
+              className="flex flex-wrap items-center justify-center gap-6 mt-8 text-xs font-semibold tracking-wide uppercase text-black bg-white py-4 px-8 rounded-md self-center border border-zinc-200 shadow-md"
             >
               <div className="flex items-center gap-2">
                 <ScanLine className="w-4 h-4 text-black" />
                 OCR {(timing.ocr / 1000).toFixed(2)}s
               </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+              <div className="w-1.5 h-1.5 rounded-md bg-zinc-400" />
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-black" />
                 AI Parse {(timing.parsing / 1000).toFixed(2)}s
               </div>
-              <div className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
+              <div className="w-1.5 h-1.5 rounded-md bg-zinc-400" />
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4 text-black" />
                 Total {(timing.total / 1000).toFixed(2)}s

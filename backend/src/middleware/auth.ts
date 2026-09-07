@@ -14,8 +14,12 @@ export const authenticate = async (req: AuthRequest, res: Response, next: NextFu
     }
 
     const token = authHeader.split(' ')[1];
-    const secret = process.env.JWT_SECRET || 'secret';
-    
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      res.status(500).json({ message: 'Server configuration error' });
+      return;
+    }
+
     const decoded = jwt.verify(token, secret);
     req.user = decoded;
     

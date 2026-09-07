@@ -2,13 +2,14 @@
 
 import React, { Suspense, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { FileText, Printer, ArrowLeft, Scale, ShieldCheck, ThumbsUp, Scan } from 'lucide-react';
+import { FileText, Printer, FileDown, ArrowLeft, Scale, ShieldCheck, ThumbsUp, Scan, Loader2 } from 'lucide-react';
 import { StatusBadge } from '@/components/findings/StatusBadge';
 import { ConfidenceMeter } from '@/components/findings/ConfidenceMeter';
 import { apiClient, type DeclarationValue, type ComplianceSummary, type Finding } from '@/lib/api';
 import { countStatuses, overallStatus } from '@/lib/compliance';
 
 interface ReportData {
+  _id?: string;
   inspectionId?: string;
   status?: string;
   category?: string;
@@ -87,10 +88,37 @@ function ReportPageContent() {
     }
   });
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<'pdf' | 'doc' | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  const exportReport = async (format: 'pdf' | 'doc') => {
+    const reportId = id || data?._id;
+    if (!reportId) {
+      window.print();
+      return;
+    }
+    setExporting(format);
+    setExportError(null);
+    try {
+      const blob = await apiClient.downloadReport(reportId, format);
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `${reportNo}-compliance-report.${format === 'doc' ? 'docx' : format}`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: unknown) {
+      setExportError(err instanceof Error ? err.message : 'Report download failed.');
+    } finally {
+      setExporting(null);
+    }
+  };
 
   // Load a stored inspection by ID if no live analysis data is present.
   useEffect(() => {
-    if (data || !id) return;
+    if (!id) return;
     let cancelled = false;
     apiClient
       .getInspection(id)
@@ -142,11 +170,23 @@ function ReportPageContent() {
               <FileText className="w-4 h-4" />
               Compliance Report
             </span>
+            {exportError && (
+              <span className="text-xs text-red-600 max-w-[180px]">{exportError}</span>
+            )}
             <button
-              onClick={() => window.print()}
-              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors active:scale-[0.97] shadow-sm shadow-blue-600/20"
+              onClick={() => exportReport('doc')}
+              disabled={exporting !== null}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-zinc-700 bg-zinc-100 hover:bg-zinc-200 rounded-xl transition-colors active:scale-[0.97] disabled:opacity-60"
             >
-              <Printer className="w-4 h-4" />
+              {exporting === 'doc' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
+              Editable (DOCX)
+            </button>
+            <button
+              onClick={() => exportReport('pdf')}
+              disabled={exporting !== null}
+              className="flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors active:scale-[0.97] shadow-sm shadow-blue-600/20 disabled:opacity-60"
+            >
+              {exporting === 'pdf' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
               Download PDF
             </button>
           </div>

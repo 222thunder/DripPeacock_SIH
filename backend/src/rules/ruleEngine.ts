@@ -358,6 +358,125 @@ const legalMetrologyRules: Rule[] = [
       ];
     },
   },
+  {
+    ruleId: 'LM-RULE-3-FONT',
+    version: '2011-BASE',
+    title: 'Font Size and Readability',
+    category: 'Readability',
+    sourceReference: 'Rule 3 read with Schedule 1 of Legal Metrology (Packaged Commodities) Rules, 2011',
+    effectiveFrom: '2011-03-01',
+    applicableCategories: ['*'],
+    evaluate: ({ declarations }) => {
+      const assessed = ['mrp', 'net_quantity', 'mfg_date', 'pkd_date', 'manufacturer', 'packer', 'consumer_care'];
+      const findings: FindingResult[] = [];
+
+      for (const key of assessed) {
+        const f = getField(declarations, key);
+        if (!f || f.value == null || f.value === '') continue;
+        const label = key.replace(/_/g, ' ');
+        const box = f.bounding_box;
+        const conf = f.confidence;
+        const heightTxt =
+          box && typeof box.height === 'number' && box.height > 0 ? `${Math.round(box.height)}px` : 'not measurable';
+        const confTxt = conf != null ? `${(conf * 100).toFixed(0)}%` : 'not available';
+        const observed = `Text height ${heightTxt}, OCR conf ${confTxt}`;
+        const expected =
+          `"${label}" must be printed in a font size no smaller than the minimum prescribed height ` +
+          '(Rule 3 read with Schedule 1) and must be clearly legible';
+
+        // No measurable text region / scale reference -> cannot verify physical size.
+        if (!box || typeof box.height !== 'number' || box.height <= 0 || conf == null) {
+          findings.push(
+            makeFinding({
+              rule: legalMetrologyRules[6],
+              field: `${key}_readability`,
+              observedValue: observed,
+              expectedCondition: expected,
+              status: 'UNABLE_TO_VERIFY',
+              severity: 'MEDIUM',
+              explanation:
+                `The "${label}" text region could not be measured, so the printed font size ` +
+                'could not be verified. Human review of the evidence image is required.',
+              evidence: f,
+            })
+          );
+          continue;
+        }
+
+        const h = box.height;
+        if (conf < 0.6) {
+          findings.push(
+            makeFinding({
+              rule: legalMetrologyRules[6],
+              field: `${key}_readability`,
+              observedValue: observed,
+              expectedCondition: expected,
+              status: 'UNABLE_TO_VERIFY',
+              severity: 'MEDIUM',
+              explanation:
+                `OCR confidence for "${label}" is low, so legibility could not be reliably assessed. ` +
+                'Human review is required.',
+              evidence: f,
+            })
+          );
+          continue;
+        }
+
+        if (h < 10) {
+          findings.push(
+            makeFinding({
+              rule: legalMetrologyRules[6],
+              field: `${key}_readability`,
+              observedValue: observed,
+              expectedCondition: expected,
+              status: 'CONFIRMED_NON_COMPLIANT',
+              severity: 'HIGH',
+              explanation:
+                `The "${label}" text region is only ~${h}px tall in the captured image, which is too small to be ` +
+                'comfortably readable and is likely below the prescribed minimum height. Requires officer verification.',
+              evidence: f,
+            })
+          );
+          continue;
+        }
+
+        if (h >= 14) {
+          findings.push(
+            makeFinding({
+              rule: legalMetrologyRules[6],
+              field: `${key}_readability`,
+              observedValue: observed,
+              expectedCondition: expected,
+              status: 'DETECTED',
+              severity: 'LOW',
+              explanation:
+                `The "${label}" text region (~${h}px tall) is clearly legible in the captured image. ` +
+                'Exact point-size conformance is subject to calibration and officer verification.',
+              evidence: f,
+            })
+          );
+          continue;
+        }
+
+        findings.push(
+          makeFinding({
+            rule: legalMetrologyRules[6],
+            field: `${key}_readability`,
+            observedValue: observed,
+            expectedCondition: expected,
+            status: 'UNABLE_TO_VERIFY',
+            severity: 'MEDIUM',
+            explanation:
+              `The "${label}" text region is ~${h}px tall; without an on-image scale reference the printed ` +
+              'font size cannot be confirmed. Human review is required.',
+            evidence: f,
+          })
+        );
+      }
+
+      return findings;
+    },
+  },
 ];
 
 const notApplicableFinding = (rule: Rule): FindingResult => ({

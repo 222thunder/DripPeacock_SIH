@@ -12,7 +12,7 @@ export interface IProduct extends Document {
 const ProductSchema: Schema = new Schema(
   {
     name: { type: String, required: true },
-    brand: { type: String, required: true },
+    brand: { type: String, default: 'Unbranded' },
     category: { type: String, required: true },
     manufacturer: { type: String, required: true },
   },

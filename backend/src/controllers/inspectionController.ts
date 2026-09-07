@@ -12,6 +12,7 @@ import {
   ComplianceSummary,
 } from '../rules/ruleEngine';
 import { applyHumanReview, ReviewerIdentity } from '../services/reviewService';
+import { buildReportDocx, buildReportPdf, ReportInspectionData } from '../services/reportService';
 import { uploadToCloudinary } from '../config/cloudinary';
 
 export const createInspection = async (req: Request, res: Response) => {
@@ -30,26 +31,57 @@ export const createInspection = async (req: Request, res: Response) => {
     let llmAssisted = false;
     const uploadedImageUrls: string[] = [];
 
-    // Process all images
-    for (const image of files) {
+    // Process all images in parallel for speed
+    const imageJobs = files.map(async (image, idx) => {
       // 1. Upload to Cloudinary
       let imageUrl = image.originalname;
       try {
-        imageUrl = await uploadToCloudinary(image.buffer, `inspections/${Date.now()}`);
+        imageUrl = await uploadToCloudinary(image.buffer, `inspections/${Date.now()}-${idx}`);
       } catch (err) {
         console.error('Failed to upload image to Cloudinary', err);
       }
-      uploadedImageUrls.push(imageUrl);
 
       // 2. Analyze
       const aiResults = await analyzeImage(image.buffer, image.originalname, image.mimetype, category);
 
-      // Merge declarations (keep first found), remembering which image each came from
+      return { imageUrl, aiResults, idx };
+    });
+
+    const imageResults = await Promise.all(imageJobs);
+
+    // Sort by original index to keep OCR text in upload order
+    imageResults.sort((a, b) => a.idx - b.idx);
+
+    for (const { imageUrl, aiResults } of imageResults) {
+      uploadedImageUrls.push(imageUrl);
+
+      // Confidence-aware merge: keep the extraction with the higher confidence,
+      // or the non-null value if only one image found the field.
       if (aiResults.declarations) {
         for (const [key, value] of Object.entries(aiResults.declarations)) {
-          if (!extractedDeclarations[key]) {
-            extractedDeclarations[key] = value as DeclaredField;
+          const incoming = value as DeclaredField;
+          const existing = extractedDeclarations[key];
+
+          if (!existing) {
+            // Field not yet seen — accept it
+            extractedDeclarations[key] = incoming;
             evidenceImageByField[key] = imageUrl;
+          } else {
+            // Field already found — prefer the one with higher confidence,
+            // or prefer a non-null value over a null one.
+            const existingConf = typeof existing.confidence === 'number' ? existing.confidence : 0;
+            const incomingConf = typeof incoming.confidence === 'number' ? incoming.confidence : 0;
+            const existingHasValue = existing.value != null && existing.value !== '';
+            const incomingHasValue = incoming.value != null && incoming.value !== '';
+
+            const shouldReplace =
+              (!existingHasValue && incomingHasValue) ||
+              (incomingHasValue && incomingConf > existingConf);
+
+            if (shouldReplace) {
+              extractedDeclarations[key] = incoming;
+              evidenceImageByField[key] = imageUrl;
+            }
           }
         }
       }
@@ -76,9 +108,34 @@ export const createInspection = async (req: Request, res: Response) => {
     const findings = evaluateRules(extractedDeclarations, { category });
     const summary = summarizeFindings(findings);
 
+    // Register a product from the extracted label so inspections are linkable,
+    // unless the inspector already selected an existing product.
+    const flatValue = (v: unknown): string => {
+      if (v == null) return '';
+      if (typeof v === 'string') return v.trim();
+      if (typeof v === 'object') return String((v as Record<string, unknown>).name || '').trim();
+      return String(v).trim();
+    };
+    let linkedProductId = productId || null;
+    if (!linkedProductId) {
+      const commodity = flatValue(extractedDeclarations.commodity_name?.value);
+      const manufacturer = flatValue(extractedDeclarations.manufacturer?.value) || flatValue(extractedDeclarations.packer?.value);
+      try {
+        const product = await Product.create({
+          name: commodity || 'Unlabelled Commodity',
+          brand: '',
+          category: category || 'general',
+          manufacturer: manufacturer || 'Not declared',
+        });
+        linkedProductId = product._id;
+      } catch (dbError) {
+        console.error('Could not auto-register product from label:', dbError);
+      }
+    }
+
     const inspection = new Inspection({
       inspectionId: `INSP-${Date.now()}`,
-      productId: productId || null,
+      productId: linkedProductId,
       inspectorId: (req as any).user?.id || null,
       status: summary.overall,
       category: category || null,
@@ -87,16 +144,11 @@ export const createInspection = async (req: Request, res: Response) => {
       findings,
     });
 
-    try {
-      await inspection.save();
-    } catch (dbError) {
-      console.error('MongoDB save error:', dbError);
-      console.warn('Could not save to MongoDB. Returning data without persisting.');
-    }
+    await inspection.save();
 
     // Return both the inspection DB object and the aggregated raw AI results for the UI
     res.status(201).json({
-      ...inspection.toObject(),
+      ...inspection.toObject({ flattenMaps: true }),
       declarations: extractedDeclarations,
       missing_fields: missingFields,
       raw_ocr: combinedOcr.trim(),
@@ -135,7 +187,7 @@ export const getInspectionById = async (req: Request, res: Response) => {
     const missingFields = MANDATORY_FIELDS.filter((f) => !inspection.extractedDeclarations?.[f]);
 
     res.json({
-      ...inspection.toObject(),
+      ...inspection.toObject({ flattenMaps: true }),
       missing_fields: missingFields,
       summary: summarizeFindings(inspection.findings || []),
     });
@@ -162,7 +214,7 @@ const asMapObject = <T>(value: unknown): Record<string, T> => {
 const reviewResponseBody = (inspection: any, findings: FindingResult[], summary: ComplianceSummary, extra?: Record<string, unknown>) => {
   const missingFields = MANDATORY_FIELDS.filter((f) => !inspection.extractedDeclarations?.[f]);
   return {
-    ...inspection.toObject(),
+    ...inspection.toObject({ flattenMaps: true }),
     declarations: inspection.extractedDeclarations,
     missing_fields: missingFields,
     findings,
@@ -180,6 +232,11 @@ export const reviewFinding = async (req: Request, res: Response) => {
     const inspection = await Inspection.findById(id);
     if (!inspection) {
       res.status(404).json({ error: 'Inspection not found' });
+      return;
+    }
+    // Prevent duplicate reviews for this finding
+    if (inspection.reviewedFindings && inspection.reviewedFindings.get(findingId)) {
+      res.status(400).json({ error: `Finding "${findingId}" has already been reviewed.` });
       return;
     }
 
@@ -309,7 +366,7 @@ export const updateDeclarations = async (req: Request, res: Response) => {
     const missing_fields = MANDATORY_FIELDS.filter((f) => !updatedDeclarations[f]);
 
     res.json({
-      ...inspection.toObject(),
+      ...inspection.toObject({ flattenMaps: true }),
       declarations: updatedDeclarations,
       missing_fields,
       findings,
@@ -317,5 +374,85 @@ export const updateDeclarations = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to update declarations', details: error.message });
+  }
+};
+
+export const exportInspectionReport = async (req: Request, res: Response) => {
+  try {
+    const format = req.query.format === 'docx' || req.query.format === 'doc' ? 'doc' : 'pdf';
+    const dbInspection = await Inspection.findById(req.params.id)
+      .populate('inspectorId', 'name email role')
+      .populate('productId', 'name brand category');
+
+    if (!dbInspection) {
+      res.status(404).json({ error: 'Inspection not found' });
+      return;
+    }
+
+    const inspection: any = dbInspection.toObject({ flattenMaps: true });
+    const findings: FindingResult[] = inspection.findings || [];
+    const summary = summarizeFindings(findings);
+    const inspector = inspection.inspectorId;
+    const product = inspection.productId;
+    const missingFields = MANDATORY_FIELDS.filter((f) => !inspection.extractedDeclarations?.[f]);
+
+    const data: ReportInspectionData = {
+      inspectionId: inspection.inspectionId || req.params.id,
+      createdAt: inspection.createdAt,
+      category: inspection.category ?? null,
+      productName: product && typeof product === 'object' ? product.name || null : null,
+      status: inspection.status,
+      reviewStatus: inspection.reviewStatus,
+      inspectorName: inspector && typeof inspector === 'object' ? inspector.name || inspector.email || null : null,
+      notes: inspection.notes,
+      images: inspection.images,
+      declarations: inspection.extractedDeclarations || {},
+      findings,
+      summary,
+      missingFields,
+    };
+
+    const fileName = `${data.inspectionId}-compliance-report`;
+
+    if (format === 'doc') {
+      const docx = await buildReportDocx(data);
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName}.docx"`);
+      res.send(docx);
+      return;
+    }
+
+    const pdf = await buildReportPdf(data);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}.pdf"`);
+    res.send(pdf);
+  } catch (error: any) {
+    res.status(500).json({ error: 'Report generation failed', details: error.message });
+  }
+};
+
+export const finalizeInspection = async (req: Request, res: Response) => {
+  try {
+    const inspection: any = await Inspection.findById(req.params.id);
+    if (!inspection) {
+      res.status(404).json({ error: 'Inspection not found' });
+      return;
+    }
+
+    const reviewer = await getReviewerIdentity(req);
+    inspection.reviewStatus = 'APPROVED';
+    inspection.finalizedBy = reviewer.id || null;
+    inspection.finalizedName = reviewer.name || null;
+    inspection.finalizedAt = new Date();
+    await inspection.save();
+
+    const findings = (inspection.findings as FindingResult[]) || [];
+    res.json({
+      ...reviewResponseBody(inspection, findings, summarizeFindings(findings)),
+      finalizedByName: inspection.finalizedName,
+      finalizedAt: inspection.finalizedAt,
+    });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 };
