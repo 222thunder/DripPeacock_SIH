@@ -1,4 +1,4 @@
-import { FindingResult, FindingStatus, Rule, RuleContext, DeclaredField } from './types';
+import { FindingResult, FindingStatus, Rule, DeclaredField } from './types';
 
 export { FindingResult, FindingStatus, Rule, RuleContext, DeclaredField } from './types';
 

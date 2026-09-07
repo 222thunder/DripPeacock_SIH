@@ -13,6 +13,7 @@ interface InspectionItem {
   status?: string;
   createdAt?: string;
   category?: string;
+  productId?: string | { name?: string; brand?: string; category?: string } | null;
   extractedDeclarations?: Record<string, { value: unknown }>;
   findings?: Finding[];
   reviewedFindings?: Record<string, unknown>;
@@ -22,7 +23,6 @@ export default function Dashboard() {
   const router = useRouter();
   const [inspections, setInspections] = useState<InspectionItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -31,7 +31,6 @@ export default function Dashboard() {
         setInspections(data);
       } catch (err) {
         console.error('Failed to load inspections:', err);
-        setError('Failed to load inspection data. Please refresh.');
       } finally {
         setLoading(false);
       }
@@ -77,7 +76,7 @@ export default function Dashboard() {
   const maxCategory = categoryBreakdown.length ? Math.max(...categoryBreakdown.map(([, n]) => n)) : 0;
   const maxViolation = violationTrends.length ? Math.max(...violationTrends.map(([, n]) => n)) : 0;
 
-  const getProductName = (inspection: any) => {
+  const getProductName = (inspection: InspectionItem) => {
     if (inspection.productId && typeof inspection.productId === 'object' && inspection.productId.name) {
       return inspection.productId.name;
     }

@@ -2,7 +2,7 @@
 
 import React, { useCallback, useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, X, Image as ImageIcon, AlertTriangle } from 'lucide-react';
+import { Upload, X, AlertTriangle } from 'lucide-react';
 
 interface ImageDropZoneProps {
   onImagesAccepted: (files: File[]) => void;

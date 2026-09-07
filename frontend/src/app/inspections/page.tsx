@@ -2,11 +2,10 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, Loader2, Inbox, Clock, UserRound, ArrowUpDown, Check, ListFilter } from 'lucide-react';
+import { Search, Inbox, Clock, UserRound, ArrowUpDown, Check, ListFilter } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { apiClient } from '@/lib/api';
 import { StatusBadge, type ComplianceStatus } from '@/components/findings/StatusBadge';
-import { Badge } from '@/components/Badge';
 
 interface Inspection {
   _id?: string;

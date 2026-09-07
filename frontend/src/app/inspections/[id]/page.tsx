@@ -101,7 +101,6 @@ export default function InspectionDetailPage() {
   const summaryOverall = useMemo(() => overallStatus(counts), [counts]);
   const reviewed = inspection?.reviewedFindings || {};
   const findingKey = (f: Finding) => `${f.ruleId}:${f.field}`;
-  const pendingReviews = findings.filter(f => f.requiresHumanReview && !reviewed[findingKey(f)]).length;
 
   const handleReport = () => {
     if (!inspection?._id) return;
@@ -119,7 +118,7 @@ export default function InspectionDetailPage() {
         try {
           const refreshed = await apiClient.getInspection(inspection._id);
           setInspection(refreshed as unknown as Inspection);
-        } catch (e) {}
+        } catch (e) { console.error('Failed to refresh inspection after review conflict', e); }
       } else {
         alert('Failed to save review: ' + msg);
       }

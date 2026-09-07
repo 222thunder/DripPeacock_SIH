@@ -152,7 +152,7 @@ export const createInspection = async (req: Request, res: Response) => {
   }
 };
 
-export const getInspections = async (req: Request, res: Response) => {
+export const getInspections = async (_req: Request, res: Response) => {
   try {
     const inspections = await Inspection.find()
       .populate('inspectorId', 'name email role')

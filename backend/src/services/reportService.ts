@@ -130,7 +130,6 @@ const buildHeader = (doc: PDFKit.PDFDocument, data: ReportInspectionData) => {
     ['Not applicable', String(data.summary.notApplicable)],
   ];
 
-  const startX = 48;
   const startY = doc.y;
   let colY = startY;
   for (const [k, v] of rows) {
