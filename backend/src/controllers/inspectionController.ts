@@ -32,22 +32,13 @@ export const createInspection = async (req: Request, res: Response) => {
     const uploadedImageUrls: string[] = [];
 
     // Process all images in parallel for speed
-    const imageJobs = files.map(async (image, idx) => {
-      // 1. Upload to Cloudinary
-      let imageUrl = image.originalname;
-      try {
-        imageUrl = await uploadToCloudinary(image.buffer, `inspections/${Date.now()}-${idx}`);
-      } catch (err) {
-        console.error('Failed to upload image to Cloudinary', err);
-      }
-
-      // 2. Analyze
-      const aiResults = await analyzeImage(image.buffer, image.originalname, image.mimetype, category);
-
-      return { imageUrl, aiResults, idx };
-    });
-
-    const imageResults = await Promise.all(imageJobs);
+    const imageResults = [];
+  for (let idx = 0; idx < files.length; idx++) {
+    const image = files[idx];
+    const imageUrl = await uploadToCloudinary(image.buffer, image.mimetype);
+    const aiResults = await analyzeImage(image.buffer, image.originalname, image.mimetype, category);
+    imageResults.push({ imageUrl, aiResults, idx });
+  }
 
     // Sort by original index to keep OCR text in upload order
     imageResults.sort((a, b) => a.idx - b.idx);
