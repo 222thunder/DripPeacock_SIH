@@ -1,3 +1,4 @@
+import asyncio
 import os
 import json
 import logging
@@ -131,10 +132,10 @@ Return JSON:
                     logger.info(f"[LLM] Attaching image ({len(image_bytes)} bytes) to Gemini prompt")
                     prompt_parts.insert(0, {"mime_type": mime_type, "data": image_bytes})
                 
-                response = await model.generate_content_async(
+                response = await asyncio.wait_for(model.generate_content_async(
                     prompt_parts, 
                     generation_config={"temperature": 0.1, "response_mime_type": "application/json"}
-                )
+                ), timeout=30.0)
                 content = response.text
                 logger.info(f"[LLM] Raw response:\n{content}")
                 
@@ -142,24 +143,24 @@ Return JSON:
                 # Option A: Hugging Face AsyncInferenceClient
                 logger.info(f"[LLM] Sending request to Hugging Face model: {self.model}")
                 logger.info(f"[LLM] Missing fields requested: {missing_fields}")
-                response = await self.hf_client.chat.completions.create(
+                response = await asyncio.wait_for(self.hf_client.chat.completions.create(
                     model=self.model,
                     messages=messages,
                     max_tokens=800,
                     temperature=0.1
-                )
+                ), timeout=30.0)
                 content = response.choices[0].message.content or ""
                 logger.info(f"[LLM] Raw response:\n{content}")
             elif self.openai_client:
                 # Option B: OpenAI-compatible client
                 logger.info(f"[LLM] Sending request to OpenAI-compatible endpoint, model: {self.model}")
                 logger.info(f"[LLM] Missing fields requested: {missing_fields}")
-                response = await self.openai_client.chat.completions.create(
+                response = await asyncio.wait_for(self.openai_client.chat.completions.create(
                     model=self.model,
                     messages=messages,
                     max_tokens=800,
                     temperature=0.1
-                )
+                ), timeout=30.0)
                 content = response.choices[0].message.content or ""
                 logger.info(f"[LLM] Raw response:\n{content}")
 
