@@ -14,6 +14,9 @@ import inspectionRoutes from './routes/inspectionRoutes';
 const app = express();
 const PORT = process.env.PORT || 5001;
 
+// Trust the reverse proxy (Render) so rate limiting works correctly with IP addresses
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
 app.use(cors({
