@@ -21,7 +21,7 @@ export const analyzeImage = async (
   const response = await fetch(`${aiServiceUrl}/analyze`, {
     method: 'POST',
     body: formData,
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(300_000),
   });
 
   if (!response.ok) {
@@ -41,7 +41,7 @@ export const parseText = async (rawText: string): Promise<any> => {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({ text: rawText }),
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(300_000),
   });
 
   if (!response.ok) {
