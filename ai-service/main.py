@@ -59,6 +59,10 @@ class AnalysisResponse(BaseModel):
     timing_ms: Dict[str, float]
     image_metadata: Dict[str, Any]
 
+@app.get("/")
+def read_root():
+    return {"message": "Legal Metrology AI Service is running", "docs": "/docs"}
+
 @app.get("/health")
 def health_check():
     return {
