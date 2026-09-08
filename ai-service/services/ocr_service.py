@@ -50,8 +50,8 @@ class OCRService:
 
     def preprocess_image(self, pil_img: Image.Image) -> List[np.ndarray]:
         """
-        Generate multiple preprocessed variants of the image for OCR.
-        Returns a list of grayscale numpy arrays to try in order.
+        Generate preprocessed variants of the image for OCR.
+        Optimized for Render free tier (low RAM, low CPU).
         """
         img_np = np.array(pil_img.convert("RGB"))
         gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
@@ -59,20 +59,16 @@ class OCRService:
 
         variants: List[np.ndarray] = []
 
-        # Variant 1: Light denoise + original grayscale (best for clean / high-res photos)
-        denoised = cv2.fastNlMeansDenoising(gray, h=10)
-        variants.append(denoised)
+        # Variant 1: Original Grayscale (Fastest)
+        variants.append(gray)
 
-        # Variant 2: Adaptive threshold (best for uneven lighting / product labels)
+        # Variant 2: Fast blur + Adaptive threshold (Good for uneven lighting)
+        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
         adaptive = cv2.adaptiveThreshold(
-            denoised, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
             cv2.THRESH_BINARY, 31, 15
         )
         variants.append(adaptive)
-
-        # Variant 3: Otsu binarisation (best for clear foreground/background separation)
-        _, otsu = cv2.threshold(denoised, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        variants.append(otsu)
 
         return variants
 
@@ -105,12 +101,12 @@ class OCRService:
         # Generate preprocessed variants
         variants = self.preprocess_image(pil_image)
 
-        # Try each variant × PSM mode, keep the one with the most good tokens
         best_data: Optional[Dict[str, Any]] = None
         best_score = -1
 
+        # Only try PSM 3 (auto) and PSM 6 (uniform block) to save CPU/Time
         for variant in variants:
-            for psm in (3, 6, 4):  # auto, uniform block, single column
+            for psm in (3, 6): 
                 try:
                     data = self._run_tesseract(variant, lang, psm)
                     score = self._count_good_tokens(data)
