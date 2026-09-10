@@ -10,21 +10,45 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-export const uploadToCloudinary = (fileBuffer: Buffer, folder: string = 'inspections'): Promise<string> => {
+export type CloudinaryUploadResult = {
+  url: string;
+  publicId: string;
+};
+
+export const uploadToCloudinary = (
+  fileBuffer: Buffer,
+  folder: string = 'inspections'
+): Promise<CloudinaryUploadResult> => {
   return new Promise((resolve, reject) => {
     // If no credentials, just return a fake URL or empty to prevent crashing if user hasn't set it up
     if (!process.env.CLOUDINARY_CLOUD_NAME) {
       console.warn('Cloudinary is not configured. Falling back to local fake URL.');
-      return resolve('https://via.placeholder.com/600x400?text=Cloudinary+Not+Configured');
+      return resolve({
+        url: 'https://via.placeholder.com/600x400?text=Cloudinary+Not+Configured',
+        publicId: '',
+      });
     }
 
     const uploadStream = cloudinary.uploader.upload_stream(
       { folder },
       (error, result) => {
-        if (result) resolve(result.secure_url);
-        else reject(error);
+        if (result?.secure_url) {
+          resolve({ url: result.secure_url, publicId: result.public_id });
+        } else {
+          reject(error || new Error('Cloudinary upload failed'));
+        }
       }
     );
     streamifier.createReadStream(fileBuffer).pipe(uploadStream);
   });
+};
+
+/** Best-effort cleanup of an uploaded asset. No-op when Cloudinary is unset or publicId is empty. */
+export const deleteFromCloudinary = async (publicId: string): Promise<void> => {
+  if (!publicId || !process.env.CLOUDINARY_CLOUD_NAME) return;
+  try {
+    await cloudinary.uploader.destroy(publicId);
+  } catch (err) {
+    console.error('Failed to delete Cloudinary asset:', publicId, err);
+  }
 };
