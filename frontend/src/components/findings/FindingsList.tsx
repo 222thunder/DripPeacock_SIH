@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { StatusBadge } from './StatusBadge';
 import { ConfidenceMeter } from './ConfidenceMeter';
 import { Filter, Scan, XCircle, CheckCircle2, PenLine } from 'lucide-react';
@@ -9,6 +9,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import type { Finding, FindingStatus, HumanReviewDecision, ReviewEntry } from '@/lib/api';
 import { countStatuses, overallStatus } from '@/lib/compliance';
+import { easeOut } from '@/lib/motion';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -37,6 +38,7 @@ const DECISION_OPTIONS: Array<{ decision: HumanReviewDecision; label: string; cl
 
 export function FindingsList({ findings = [], reviewed = {}, onReviewDecision }: FindingsListProps) {
   const [filter, setFilter] = useState<FilterType>('ALL');
+  const reduce = useReducedMotion();
 
   const filteredFindings = useMemo(() => {
     if (filter === 'ALL') return findings;
@@ -56,8 +58,9 @@ export function FindingsList({ findings = [], reviewed = {}, onReviewDecision }:
   return (
     <div className="space-y-6">
       <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
+        initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(-6px)' }}
+        animate={{ opacity: 1, transform: 'translateY(0px)' }}
+        transition={{ duration: 0.22, ease: easeOut }}
         className={cn("px-6 py-4 rounded-2xl shadow-sm flex items-center justify-between", bannerConfig?.bg)}
       >
         <div className="flex flex-col">
@@ -100,7 +103,7 @@ export function FindingsList({ findings = [], reviewed = {}, onReviewDecision }:
               key={f}
               onClick={() => setFilter(f)}
               className={cn(
-                "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-all active:scale-95 whitespace-nowrap",
+                "active-scale flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap",
                 filter === f
                   ? "bg-zinc-900 text-white dark:bg-white dark:text-zinc-900 shadow-sm"
                   : "bg-white dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200/50 dark:border-zinc-800/50"
@@ -136,10 +139,10 @@ export function FindingsList({ findings = [], reviewed = {}, onReviewDecision }:
               return (
                 <motion.div
                   layout
-                  initial={{ opacity: 0, y: 20, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.15 } }}
-                  transition={{ type: "spring" as const, bounce: 0, duration: 0.4 }}
+                  initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(6px) scale(0.98)' }}
+                  animate={{ opacity: 1, transform: 'translateY(0px) scale(1)' }}
+                  exit={{ opacity: 0, transform: 'scale(0.98)', transition: { duration: 0.15, ease: easeOut } }}
+                  transition={{ duration: 0.22, ease: easeOut }}
                   key={key}
                   className="p-5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-sm hover:shadow-md transition-shadow"
                 >

@@ -7,6 +7,7 @@ import { AlertCircle, FileText, LayoutGrid, Scan, Check, X, Edit2, Plus } from '
 import { ConfidenceMeter } from './ConfidenceMeter';
 import { Badge } from '@/components/Badge';
 import type { DeclarationValue } from '@/lib/api';
+import { easeOut, STAGGER } from '@/lib/motion';
 
 interface ExtractedDeclarationsProps {
   declarations: Record<string, DeclarationValue>;
@@ -70,20 +71,18 @@ const getGroup = (key: string): string => {
 };
 
 const containerVariants = {
-  hidden: { opacity: 0 },
+  hidden: {},
   show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.06 },
+    transition: { staggerChildren: STAGGER },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 15, scale: 0.96 },
+  hidden: { opacity: 0, transform: 'translateY(6px)' },
   show: {
     opacity: 1,
-    y: 0,
-    scale: 1,
-    transition: { type: 'spring' as const, bounce: 0, duration: 0.4 },
+    transform: 'translateY(0px)',
+    transition: { duration: 0.22, ease: easeOut },
   },
 };
 

@@ -4,8 +4,10 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { apiClient, type Finding } from '@/lib/api';
 import { StatusBadge, type ComplianceStatus } from '@/components/findings/StatusBadge';
+import { easeOut, fadeUp, fadeUpReduced, staggerContainer } from '@/lib/motion';
 
 interface InspectionItem {
   _id?: string;
@@ -23,6 +25,8 @@ export default function Dashboard() {
   const router = useRouter();
   const [inspections, setInspections] = useState<InspectionItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const reduce = useReducedMotion();
+  const enter = reduce ? fadeUpReduced : fadeUp;
 
   useEffect(() => {
     async function loadData() {
@@ -83,29 +87,40 @@ export default function Dashboard() {
     return (inspection.extractedDeclarations?.commodity_name?.value as string) || 'Unknown Entity';
   };
 
-
   return (
     <div className="max-w-7xl mx-auto px-6 lg:px-12 py-12 space-y-16">
       
-      {/* Header */}
-      <header className="border-b-2 border-[#1C1B1A] dark:border-[#F9F8F6] pb-8">
+      <motion.header
+        className="border-b-2 border-[#1C1B1A] dark:border-[#F9F8F6] pb-8"
+        initial="hidden"
+        animate="show"
+        variants={enter}
+      >
         <h1 className="font-display text-4xl lg:text-5xl text-[#1C1B1A] dark:text-[#F9F8F6] tracking-tight">Platform Metrics</h1>
         <p className="font-sans text-sm text-[#57534E] dark:text-[#A8A29E] mt-4 uppercase tracking-widest font-semibold">
           Current Operating Posture
         </p>
-      </header>
+      </motion.header>
 
-      {/* Stats - Editorial Grid */}
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
-        <StatBlock title="Total Processed" value={loading ? '—' : inspections.length.toString()} />
-        <StatBlock title="Verified Compliant" value={loading ? '—' : compliantCount.toString()} />
-        <StatBlock title="Non-Compliant" value={loading ? '—' : nonCompliantCount.toString()} />
-        <StatBlock title="Pending Review" value={loading ? '—' : reviewCount.toString()} />
-        <StatBlock title="Findings Awaiting Review" value={loading ? '—' : pendingReviews.toString()} />
-      </section>
+      <motion.section
+        className="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12"
+        variants={staggerContainer}
+        initial="hidden"
+        animate="show"
+      >
+        <StatBlock title="Total Processed" value={loading ? '—' : inspections.length.toString()} variants={enter} />
+        <StatBlock title="Verified Compliant" value={loading ? '—' : compliantCount.toString()} variants={enter} />
+        <StatBlock title="Non-Compliant" value={loading ? '—' : nonCompliantCount.toString()} variants={enter} />
+        <StatBlock title="Pending Review" value={loading ? '—' : reviewCount.toString()} variants={enter} />
+        <StatBlock title="Findings Awaiting Review" value={loading ? '—' : pendingReviews.toString()} variants={enter} />
+      </motion.section>
 
-      {/* Breakdowns */}
-      <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <motion.section
+        className="grid grid-cols-1 lg:grid-cols-2 gap-8"
+        initial="hidden"
+        animate="show"
+        variants={enter}
+      >
         <div className="border border-[#E7E5E4] dark:border-[#292524] p-8">
           <h3 className="font-display text-2xl text-[#1C1B1A] dark:text-[#F9F8F6] mb-6">Categories Audited</h3>
           {loading ? (
@@ -117,8 +132,13 @@ export default function Dashboard() {
               {categoryBreakdown.map(([cat, n]) => (
                 <div key={cat} className="flex items-center gap-4">
                   <span className="w-40 shrink-0 text-xs uppercase tracking-widest font-semibold text-[#57534E] dark:text-[#A8A29E] truncate">{cat}</span>
-                  <div className="flex-1 h-2 bg-[#E7E5E4] dark:bg-[#292524]">
-                    <div className="h-2 bg-[#1C1B1A] dark:bg-[#F9F8F6]" style={{ width: `${maxCategory ? (n / maxCategory) * 100 : 0}%` }} />
+                  <div className="flex-1 h-2 bg-[#E7E5E4] dark:bg-[#292524] overflow-hidden">
+                    <motion.div
+                      className="h-2 bg-[#1C1B1A] dark:bg-[#F9F8F6] origin-left"
+                      initial={reduce ? false : { transform: 'scaleX(0)' }}
+                      animate={{ transform: `scaleX(${maxCategory ? n / maxCategory : 0})` }}
+                      transition={{ duration: 0.25, ease: easeOut, delay: 0.05 }}
+                    />
                   </div>
                   <span className="w-8 text-right font-mono text-sm text-[#1C1B1A] dark:text-[#F9F8F6]">{n}</span>
                 </div>
@@ -138,8 +158,13 @@ export default function Dashboard() {
               {violationTrends.map(([rule, n]) => (
                 <div key={rule} className="flex items-center gap-4">
                   <span className="w-40 shrink-0 font-mono text-xs text-[#1C1B1A] dark:text-[#F9F8F6] truncate">{rule}</span>
-                  <div className="flex-1 h-2 bg-[#E7E5E4] dark:bg-[#292524]">
-                    <div className="h-2 bg-[#B91C1C]" style={{ width: `${maxViolation ? (n / maxViolation) * 100 : 0}%` }} />
+                  <div className="flex-1 h-2 bg-[#E7E5E4] dark:bg-[#292524] overflow-hidden">
+                    <motion.div
+                      className="h-2 bg-[#B91C1C] origin-left"
+                      initial={reduce ? false : { transform: 'scaleX(0)' }}
+                      animate={{ transform: `scaleX(${maxViolation ? n / maxViolation : 0})` }}
+                      transition={{ duration: 0.25, ease: easeOut, delay: 0.05 }}
+                    />
                   </div>
                   <span className="w-8 text-right font-mono text-sm text-[#1C1B1A] dark:text-[#F9F8F6]">{n}</span>
                 </div>
@@ -147,9 +172,8 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-      </section>
+      </motion.section>
 
-      {/* Table Section */}
       <section className="pt-8 border-t border-[#E7E5E4] dark:border-[#292524]">
         <div className="flex justify-between items-end mb-8">
           <h2 className="font-display text-3xl text-[#1C1B1A] dark:text-[#F9F8F6]">Ledger</h2>
@@ -181,11 +205,14 @@ export default function Dashboard() {
                   <td colSpan={4} className="py-12 text-center text-sm font-semibold uppercase tracking-widest text-[#A8A29E]">No records exist.</td>
                 </tr>
               ) : (
-                inspections.map((item) => (
-                  <tr
+                inspections.map((item, index) => (
+                  <motion.tr
                     key={item._id}
                     onClick={() => item._id && router.push(`/inspections/${item._id}`)}
                     className="cursor-pointer hover:bg-[#F5F5F4] dark:hover:bg-[#1C1B1A] transition-colors"
+                    initial={reduce ? false : { opacity: 0, transform: 'translateY(6px)' }}
+                    animate={{ opacity: 1, transform: 'translateY(0px)' }}
+                    transition={{ duration: 0.22, ease: easeOut, delay: Math.min(index, 8) * 0.03 }}
                   >
                     <td className="py-5 pr-6 font-mono text-sm font-semibold text-[#1C1B1A] dark:text-[#F9F8F6]">{item.inspectionId}</td>
                     <td className="py-5 px-6 font-sans text-sm text-[#57534E] dark:text-[#E7E5E4] max-w-[300px] truncate">
@@ -197,7 +224,7 @@ export default function Dashboard() {
                     <td className="py-5 pl-6 text-right">
                       <StatusBadge status={item.status as ComplianceStatus} />
                     </td>
-                  </tr>
+                  </motion.tr>
                 ))
               )}
             </tbody>
@@ -209,11 +236,19 @@ export default function Dashboard() {
   );
 }
 
-function StatBlock({ title, value }: { title: string; value: string }) {
+function StatBlock({
+  title,
+  value,
+  variants,
+}: {
+  title: string;
+  value: string;
+  variants: typeof fadeUp | typeof fadeUpReduced;
+}) {
   return (
-    <div className="flex flex-col border-l border-[#1C1B1A] dark:border-[#F9F8F6] pl-6">
+    <motion.div className="flex flex-col border-l border-[#1C1B1A] dark:border-[#F9F8F6] pl-6" variants={variants}>
       <span className="font-sans text-xs font-semibold uppercase tracking-widest text-[#57534E] dark:text-[#A8A29E] mb-2">{title}</span>
       <span className="font-display text-5xl tracking-tight text-[#1C1B1A] dark:text-[#F9F8F6]">{value}</span>
-    </div>
+    </motion.div>
   );
 }

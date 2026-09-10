@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
 import { useRouter, useParams } from 'next/navigation';
 import { ArrowLeft, FileText, Loader2, Clock, Scan } from 'lucide-react';
+import { motion, useReducedMotion } from 'framer-motion';
 import { apiClient, getStoredRole, type Finding, type ReviewEntry, type HumanReviewDecision, type DeclarationValue } from '@/lib/api';
 import { StatusBadge, type ComplianceStatus } from '@/components/findings/StatusBadge';
 import { Badge } from '@/components/Badge';
@@ -12,6 +13,7 @@ import { countStatuses, overallStatus } from '@/lib/compliance';
 import { ExtractedDeclarations } from '@/components/findings/ExtractedDeclarations';
 import { HumanReviewPanel } from '@/components/findings/HumanReviewPanel';
 import { EvidenceLightbox } from '@/components/findings/EvidenceLightbox';
+import { fadeUp, fadeUpReduced, staggerContainer } from '@/lib/motion';
 
 interface RowDeclaration {
   value?: unknown;
@@ -68,7 +70,8 @@ export default function InspectionDetailPage() {
   const [finalizing, setFinalizing] = useState(false);
   const role = getStoredRole();
   const canFinalize = ['SUPERVISOR', 'ADMIN'].includes(role || '');
-
+  const reduce = useReducedMotion();
+  const enter = reduce ? fadeUpReduced : fadeUp;
   const handleFinalize = async () => {
     if (!inspection?._id || finalizing) return;
     setFinalizing(true);
@@ -155,8 +158,13 @@ export default function InspectionDetailPage() {
     <div className="max-w-7xl mx-auto px-6 lg:px-12 py-12 space-y-16">
       
       {/* Dossier Header */}
-      <header className="border-b-2 border-[#1C1B1A] dark:border-[#F9F8F6] pb-10">
-        <button onClick={() => router.back()} className="flex items-center gap-2 text-xs uppercase tracking-widest font-bold text-[#57534E] hover:text-[#1C1B1A] dark:text-[#A8A29E] dark:hover:text-[#F9F8F6] mb-8 transition-colors">
+      <motion.header
+        className="border-b-2 border-[#1C1B1A] dark:border-[#F9F8F6] pb-10"
+        initial="hidden"
+        animate="show"
+        variants={enter}
+      >
+        <button onClick={() => router.back()} className="active-scale flex items-center gap-2 text-xs uppercase tracking-widest font-bold text-[#57534E] hover:text-[#1C1B1A] dark:text-[#A8A29E] dark:hover:text-[#F9F8F6] mb-8 transition-colors">
           <ArrowLeft className="w-4 h-4" /> Return
         </button>
         
@@ -180,14 +188,14 @@ export default function InspectionDetailPage() {
                   Finalized
                 </span>
               )}
-              <button onClick={handleReport} className="flex items-center gap-2 border border-[#1C1B1A] dark:border-[#F9F8F6] px-5 py-2.5 text-xs uppercase tracking-widest font-semibold hover:bg-[#1C1B1A] hover:text-[#F9F8F6] dark:hover:bg-[#F9F8F6] dark:hover:text-[#1C1B1A] transition-colors">
+              <button onClick={handleReport} className="active-scale flex items-center gap-2 border border-[#1C1B1A] dark:border-[#F9F8F6] px-5 py-2.5 text-xs uppercase tracking-widest font-semibold hover:bg-[#1C1B1A] hover:text-[#F9F8F6] dark:hover:bg-[#F9F8F6] dark:hover:text-[#1C1B1A] transition-colors">
                 <FileText className="w-4 h-4" /> Generate Report
               </button>
               {canFinalize && inspection.reviewStatus !== 'APPROVED' && (
                 <button
                   onClick={handleFinalize}
                   disabled={finalizing}
-                  className="flex items-center gap-2 bg-[#1C1B1A] dark:bg-[#F9F8F6] text-[#F9F8F6] dark:text-[#1C1B1A] px-5 py-2.5 text-xs uppercase tracking-widest font-bold transition-colors disabled:opacity-60"
+                  className="active-scale flex items-center gap-2 bg-[#1C1B1A] dark:bg-[#F9F8F6] text-[#F9F8F6] dark:text-[#1C1B1A] px-5 py-2.5 text-xs uppercase tracking-widest font-bold transition-colors disabled:opacity-60"
                 >
                   {finalizing && <Loader2 className="w-4 h-4 animate-spin" />}
                   Approve &amp; Finalize
@@ -196,13 +204,18 @@ export default function InspectionDetailPage() {
             </div>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       {/* Grid Composition */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16">
         
         {/* Left Column: Evidence & Declarations */}
-        <div className="lg:col-span-5 space-y-16">
+        <motion.div
+          className="lg:col-span-5 space-y-16"
+          initial="hidden"
+          animate="show"
+          variants={enter}
+        >
           
           {/* Summary Block */}
           <section className="border-l border-[#1C1B1A] dark:border-[#F9F8F6] pl-6">
@@ -252,7 +265,7 @@ export default function InspectionDetailPage() {
             </div>
           </section>
 
-        </div>
+        </motion.div>
 
         {/* Right Column: Findings Ledger */}
         <div className="lg:col-span-7">
@@ -260,13 +273,22 @@ export default function InspectionDetailPage() {
             <h2 className="font-sans text-xs uppercase tracking-widest font-semibold text-[#57534E] dark:text-[#A8A29E] mb-6 border-b border-[#1C1B1A] dark:border-[#F9F8F6] pb-2">Legislative Findings</h2>
             
             {findings.length > 0 ? (
-              <div className="space-y-8">
+              <motion.div
+                className="space-y-8"
+                variants={staggerContainer}
+                initial="hidden"
+                animate="show"
+              >
                 {findings.map((f, i) => {
                   const reviewEntry = reviewed[findingKey(f)] || reviewed[`${f.ruleId}:${f.field}`];
                   const isPending = f.requiresHumanReview && !reviewEntry;
 
                   return (
-                    <article key={`${f.ruleId}-${f.field}-${i}`} className="border-b border-[#E7E5E4] dark:border-[#292524] pb-8 last:border-0">
+                    <motion.article
+                      key={`${f.ruleId}-${f.field}-${i}`}
+                      className="border-b border-[#E7E5E4] dark:border-[#292524] pb-8 last:border-0"
+                      variants={enter}
+                    >
                       
                       {/* Grid Header with aligned badges */}
                       <div className="flex flex-col gap-3 mb-6">
@@ -349,10 +371,10 @@ export default function InspectionDetailPage() {
                           />
                         </div>
                       )}
-                    </article>
+                    </motion.article>
                   );
                 })}
-              </div>
+              </motion.div>
             ) : (
               <p className="font-sans text-sm text-[#57534E] dark:text-[#A8A29E]">No legislative flags generated for this record.</p>
             )}

@@ -1,9 +1,10 @@
 'use client';
 
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { easeOut } from '@/lib/motion';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -16,6 +17,8 @@ interface ConfidenceMeterProps {
 }
 
 export function ConfidenceMeter({ confidence, className, showText = true }: ConfidenceMeterProps) {
+  const reduce = useReducedMotion();
+
   if (confidence === null || confidence === undefined) {
     return (
       <span className={cn("text-[10px] font-medium text-zinc-500", className)}>
@@ -42,10 +45,10 @@ export function ConfidenceMeter({ confidence, className, showText = true }: Conf
     <div className={cn("flex items-center gap-1.5", className)} title={`Confidence: ${percentage}%`}>
       <div className="relative w-10 h-1 bg-zinc-200 dark:bg-zinc-800 rounded-full overflow-hidden">
         <motion.div
-          initial={{ width: 0 }}
-          animate={{ width: `${percentage}%` }}
-          transition={{ duration: 0.8, ease: "easeOut", delay: 0.1 }}
-          className={cn("absolute top-0 left-0 h-full rounded-full", color)}
+          initial={reduce ? false : { transform: 'scaleX(0)' }}
+          animate={{ transform: `scaleX(${value})` }}
+          transition={{ duration: 0.25, ease: easeOut }}
+          className={cn("absolute top-0 left-0 h-full w-full origin-left rounded-full", color)}
         />
       </div>
       {showText && (

@@ -2,12 +2,13 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { ChevronDown, Clock, Zap, FileText, Check, ScanLine, Save } from 'lucide-react';
 import ImageDropZone from './ImageDropZone';
 import { apiClient, type AnalysisResponse, type ReviewEntry } from '@/lib/api';
 import { ExtractedDeclarations } from '../findings/ExtractedDeclarations';
 import { FindingsList } from '../findings/FindingsList';
+import { easeOut, STAGGER, viewSwap } from '@/lib/motion';
 
 type ScanState = 'idle' | 'uploading' | 'analyzing' | 'results';
 
@@ -34,6 +35,14 @@ export default function ScannerView() {
   const [isOcrExpanded, setIsOcrExpanded] = useState(false);
   const [timing, setTiming] = useState({ ocr: 0, parsing: 0, total: 0 });
   const [scanError, setScanError] = useState<string | null>(null);
+  const reduce = useReducedMotion();
+  const swap = reduce
+    ? {
+        initial: { opacity: 0 },
+        animate: { opacity: 1, transition: { duration: 0.15, ease: easeOut } },
+        exit: { opacity: 0, transition: { duration: 0.12, ease: easeOut } },
+      }
+    : viewSwap;
 
   const handleImagesAccepted = (selectedFiles: File[]) => {
     setFiles(selectedFiles);
@@ -139,10 +148,9 @@ export default function ScannerView() {
         {scanState === 'idle' && (
           <motion.div
             key="idle"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, filter: 'blur(4px)' }}
-            transition={{ type: 'spring' as const, bounce: 0, duration: 0.4 }}
+            initial={swap.initial}
+            animate={swap.animate}
+            exit={swap.exit}
             className="flex-1 flex flex-col items-center justify-center pt-12 pb-24"
           >
             <div className="w-full max-w-3xl bg-white/70 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white/80 ring-1 ring-zinc-100 relative overflow-hidden">
@@ -155,10 +163,11 @@ export default function ScannerView() {
                 <AnimatePresence>
                   {files.length > 0 && (
                     <motion.div
-                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                      animate={{ opacity: 1, height: 'auto', marginTop: 32 }}
-                      exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                      className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-zinc-100 pt-6"
+                      initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(6px)' }}
+                      animate={{ opacity: 1, transform: 'translateY(0px)' }}
+                      exit={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(6px)' }}
+                      transition={{ duration: 0.2, ease: easeOut }}
+                      className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 border-t border-zinc-100 pt-6 mt-8"
                     >
                       <label className="flex items-center gap-2 text-sm">
                         <span className="text-zinc-500 font-medium whitespace-nowrap">Category</span>
@@ -173,8 +182,9 @@ export default function ScannerView() {
                         </select>
                       </label>
                       <motion.button
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
+                        whileHover={reduce ? undefined : { transform: 'scale(1.01)' }}
+                        whileTap={reduce ? undefined : { transform: 'scale(0.98)' }}
+                        transition={{ duration: 0.14, ease: easeOut }}
                         onClick={handleScan}
                         className="bg-zinc-900 text-white px-8 py-3.5 rounded-2xl font-medium shadow-lg shadow-zinc-900/20 flex items-center justify-center gap-2 transition-shadow hover:shadow-zinc-900/30"
                       >
@@ -199,10 +209,9 @@ export default function ScannerView() {
         {(scanState === 'uploading' || scanState === 'analyzing') && (
           <motion.div
             key="analyzing"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, y: -20, filter: 'blur(8px)' }}
-            transition={{ type: 'spring' as const, bounce: 0, duration: 0.4 }}
+            initial={swap.initial}
+            animate={swap.animate}
+            exit={swap.exit}
             className="flex-1 flex flex-col items-center justify-center pt-24 pb-32"
           >
             <div className="relative w-56 h-56 mb-12">
@@ -233,8 +242,8 @@ export default function ScannerView() {
                   
                   {/* Scanning beam */}
                   <motion.div
-                    animate={{ top: ['-20%', '120%'] }}
-                    transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+                    animate={reduce ? undefined : { transform: ['translateY(-20%)', 'translateY(120%)'] }}
+                    transition={{ duration: 2.5, repeat: Infinity, ease: 'linear' }}
                     className="absolute left-0 right-0 h-32 bg-gradient-to-b from-transparent via-indigo-500/30 to-indigo-500/80 border-b-2 border-indigo-400 z-10"
                     style={{ filter: 'drop-shadow(0 0 12px rgba(99,102,241,0.8))' }}
                   />
@@ -253,9 +262,10 @@ export default function ScannerView() {
                 <AnimatePresence mode="wait">
                   <motion.p
                     key={scanState}
-                    initial={{ y: 20, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -20, opacity: 0 }}
+                    initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(8px)' }}
+                    animate={{ opacity: 1, transform: 'translateY(0px)' }}
+                    exit={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(-8px)' }}
+                    transition={{ duration: 0.2, ease: easeOut }}
                     className="text-neutral-500 font-medium"
                   >
                     {scanState === 'uploading' ? 'Encrypting and transferring...' : 'Running OCR & Extracting Declarations...'}
@@ -269,9 +279,8 @@ export default function ScannerView() {
         {scanState === 'results' && (
           <motion.div
             key="results"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: 'spring' as const, bounce: 0, duration: 0.4 }}
+            initial={swap.initial}
+            animate={swap.animate}
             className="flex flex-col gap-6"
           >
             {/* Header Actions */}
@@ -288,28 +297,31 @@ export default function ScannerView() {
               <div className="flex items-center gap-3 w-full sm:w-auto">
                 {Object.keys(reviewedFindings).length > 0 && (
                   <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
+                    whileHover={reduce ? undefined : { transform: 'scale(1.01)' }}
+                    whileTap={reduce ? undefined : { transform: 'scale(0.98)' }}
+                    transition={{ duration: 0.14, ease: easeOut }}
                     onClick={handleSaveReview}
-                    className="flex-1 sm:flex-none px-6 py-3 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-xl transition-all shadow-sm flex items-center justify-center gap-2"
+                    className="flex-1 sm:flex-none px-6 py-3 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-300 hover:bg-emerald-100 rounded-xl transition-colors shadow-sm flex items-center justify-center gap-2"
                   >
                     <Save className="w-4 h-4" />
                     Save Review
                   </motion.button>
                 )}
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={reduce ? undefined : { transform: 'scale(1.01)' }}
+                  whileTap={reduce ? undefined : { transform: 'scale(0.98)' }}
+                  transition={{ duration: 0.14, ease: easeOut }}
                   onClick={handleReset}
-                  className="flex-1 sm:flex-none px-6 py-3 text-sm font-semibold text-zinc-700 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 rounded-xl transition-all shadow-sm"
+                  className="flex-1 sm:flex-none px-6 py-3 text-sm font-semibold text-zinc-700 bg-white border border-zinc-200 hover:border-zinc-300 hover:bg-zinc-50 rounded-xl transition-colors shadow-sm"
                 >
                   New Scan
                 </motion.button>
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={reduce ? undefined : { transform: 'scale(1.01)' }}
+                  whileTap={reduce ? undefined : { transform: 'scale(0.98)' }}
+                  transition={{ duration: 0.14, ease: easeOut }}
                   onClick={handleGenerateReport}
-                  className="flex-1 sm:flex-none px-6 py-3 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-all shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2"
+                  className="flex-1 sm:flex-none px-6 py-3 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl transition-colors shadow-md shadow-indigo-600/20 flex items-center justify-center gap-2"
                 >
                   <FileText className="w-4 h-4" />
                   Generate Report
@@ -338,7 +350,7 @@ export default function ScannerView() {
                 </div>
 
                 {/* Collapsible Raw OCR */}
-                <div className="bg-white rounded-[2rem] border border-zinc-200/60 overflow-hidden shadow-sm transition-all hover:border-zinc-300">
+                <div className="bg-white rounded-[2rem] border border-zinc-200/60 overflow-hidden shadow-sm transition-[border-color] duration-200 hover:border-zinc-300">
                   <button
                     onClick={() => setIsOcrExpanded(!isOcrExpanded)}
                     className="w-full flex items-center justify-between p-6 bg-zinc-50/30 hover:bg-zinc-50/80 transition-colors"
@@ -348,18 +360,19 @@ export default function ScannerView() {
                       Raw OCR Text
                     </div>
                     <motion.div
-                      animate={{ rotate: isOcrExpanded ? 180 : 0 }}
-                      transition={{ type: 'spring' as const, bounce: 0, duration: 0.4 }}
+                      animate={{ transform: isOcrExpanded ? 'rotate(180deg)' : 'rotate(0deg)' }}
+                      transition={{ duration: 0.2, ease: easeOut }}
                     >
                       <ChevronDown className="w-5 h-5 text-neutral-400" />
                     </motion.div>
                   </button>
-                  <AnimatePresence>
+                  <AnimatePresence initial={false}>
                     {isOcrExpanded && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.22, ease: easeOut }}
                         className="overflow-hidden"
                       >
                         <div className="p-5 pt-0 text-sm text-neutral-600 font-mono whitespace-pre-wrap leading-relaxed max-h-64 overflow-y-auto bg-neutral-50/50">
@@ -375,13 +388,23 @@ export default function ScannerView() {
               <div className="w-full xl:w-[55%] flex flex-col gap-6">
                 <motion.div
                   initial="hidden"
-                  animate="visible"
+                  animate="show"
                   variants={{
-                    visible: { transition: { staggerChildren: 0.1 } }
+                    hidden: {},
+                    show: { transition: { staggerChildren: STAGGER } },
                   }}
                   className="space-y-6"
                 >
-                  <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, bounce: 0, duration: 0.4 } } }}>
+                  <motion.div
+                    variants={{
+                      hidden: reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(6px)' },
+                      show: {
+                        opacity: 1,
+                        transform: 'translateY(0px)',
+                        transition: { duration: 0.22, ease: easeOut },
+                      },
+                    }}
+                  >
                     <ExtractedDeclarations 
                       declarations={results?.declarations || {}} 
                       missing_fields={results?.missing_fields || []} 
@@ -389,8 +412,17 @@ export default function ScannerView() {
                     />
                   </motion.div>
                   
-                  <motion.div variants={{ hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { type: 'spring' as const, bounce: 0, duration: 0.4 } } }}>
-<FindingsList
+                  <motion.div
+                    variants={{
+                      hidden: reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(6px)' },
+                      show: {
+                        opacity: 1,
+                        transform: 'translateY(0px)',
+                        transition: { duration: 0.22, ease: easeOut },
+                      },
+                    }}
+                  >
+                    <FindingsList
                       findings={results?.findings}
                       reviewed={reviewedFindings}
                       onReviewDecision={handleReviewDecision}
@@ -402,9 +434,9 @@ export default function ScannerView() {
 
             {/* Timing Footer */}
             <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
+              initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(6px)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px)' }}
+              transition={{ duration: 0.22, ease: easeOut, delay: reduce ? 0 : 0.12 }}
               className="flex flex-wrap items-center justify-center gap-6 mt-8 text-xs font-semibold tracking-wide uppercase text-black bg-white py-4 px-8 rounded-md self-center border border-zinc-200 shadow-md"
             >
               <div className="flex items-center gap-2">

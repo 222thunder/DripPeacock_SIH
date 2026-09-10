@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useCallback, useState, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion';
 import { Upload, X, AlertTriangle } from 'lucide-react';
+import { easeOut } from '@/lib/motion';
 
 interface ImageDropZoneProps {
   onImagesAccepted: (files: File[]) => void;
@@ -18,6 +19,7 @@ export default function ImageDropZone({
   const [isDragActive, setIsDragActive] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewFiles, setPreviewFiles] = useState<{ file: File; preview: string }[]>([]);
+  const reduce = useReducedMotion();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -100,14 +102,23 @@ export default function ImageDropZone({
   return (
     <div className="w-full flex flex-col gap-4">
       <motion.div
-        whileHover={previewFiles.length === 0 ? { scale: 1.005 } : {}}
-        whileTap={previewFiles.length === 0 ? { scale: 0.995 } : {}}
+        whileHover={
+          previewFiles.length === 0 && !reduce
+            ? { transform: 'scale(1.005)' }
+            : undefined
+        }
+        whileTap={
+          previewFiles.length === 0 && !reduce
+            ? { transform: 'scale(0.995)' }
+            : undefined
+        }
+        transition={{ duration: 0.14, ease: easeOut }}
         onClick={handleZoneClick}
         onDragEnter={handleDragEnter}
         onDragOver={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={`relative overflow-hidden rounded-[2rem] border transition-all duration-300 shadow-sm ${
+        className={`relative overflow-hidden rounded-[2rem] border transition-[border-color,box-shadow,background-color] duration-200 shadow-sm ${
           isDragActive 
             ? 'border-indigo-500 bg-indigo-50/30 ring-4 ring-indigo-500/10' 
             : 'border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-md'
@@ -127,25 +138,25 @@ export default function ImageDropZone({
         {previewFiles.length === 0 ? (
           <div className="flex flex-col items-center justify-center text-center relative z-10">
             <motion.div
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.1, type: 'spring' as const, bounce: 0, duration: 0.5 }}
+              initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(6px)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px)' }}
+              transition={{ delay: 0.04, duration: 0.22, ease: easeOut }}
               className="bg-zinc-100/80 p-5 rounded-2xl mb-6 text-zinc-600 shadow-sm ring-1 ring-zinc-200/50"
             >
               <Upload className="w-8 h-8" strokeWidth={1.5} />
             </motion.div>
             <motion.h3 
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.15, type: 'spring' as const, bounce: 0, duration: 0.5 }}
+              initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(6px)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px)' }}
+              transition={{ delay: 0.08, duration: 0.22, ease: easeOut }}
               className="text-xl font-semibold text-zinc-900 mb-2 tracking-tight"
             >
               Upload packaging images
             </motion.h3>
             <motion.p 
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2, type: 'spring' as const, bounce: 0, duration: 0.5 }}
+              initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(6px)' }}
+              animate={{ opacity: 1, transform: 'translateY(0px)' }}
+              transition={{ delay: 0.12, duration: 0.22, ease: easeOut }}
               className="text-sm text-zinc-500 font-medium"
             >
               Drag and drop, or click to browse
@@ -168,26 +179,26 @@ export default function ImageDropZone({
                 {previewFiles.map((fileObj, idx) => (
                   <motion.div
                     key={fileObj.file.name + idx}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ type: 'spring' as const, bounce: 0, duration: 0.4 }}
+                    initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'scale(0.96)' }}
+                    animate={{ opacity: 1, transform: 'scale(1)' }}
+                    exit={{ opacity: 0, transform: 'scale(0.96)' }}
+                    transition={{ duration: 0.2, ease: easeOut }}
                     className="relative group aspect-square rounded-2xl overflow-hidden bg-neutral-100 border border-neutral-200/60 shadow-sm"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={fileObj.preview}
                       alt={`Preview ${idx}`}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      className="w-full h-full object-cover transition-transform duration-200 ease-[var(--ease-out)] [@media(hover:hover)_and_(pointer:fine)]:group-hover:scale-[1.03]"
                     />
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+                    <div className="absolute inset-0 bg-black/0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:bg-black/10 transition-colors duration-200" />
                     <button
                       onClick={(e) => { e.stopPropagation(); removeFile(idx); }}
-                      className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm p-1.5 rounded-full text-neutral-600 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                      className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm p-1.5 rounded-full text-neutral-600 hover:text-red-500 opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 transition-opacity duration-200 shadow-sm"
                     >
                       <X className="w-4 h-4" />
                     </button>
-                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-3 opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100 transition-opacity duration-200">
                       <p className="text-white text-xs truncate">{fileObj.file.name}</p>
                     </div>
                   </motion.div>
@@ -201,9 +212,10 @@ export default function ImageDropZone({
       <AnimatePresence>
         {error && (
           <motion.div
-            initial={{ opacity: 0, y: -10, height: 0 }}
-            animate={{ opacity: 1, y: 0, height: 'auto' }}
-            exit={{ opacity: 0, y: -10, height: 0 }}
+            initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(-4px)' }}
+            animate={{ opacity: 1, transform: 'translateY(0px)' }}
+            exit={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(-4px)' }}
+            transition={{ duration: 0.18, ease: easeOut }}
             className="flex items-center gap-2 text-red-600 bg-red-50 px-4 py-3 rounded-2xl text-sm"
           >
             <AlertTriangle className="w-4 h-4 shrink-0" />

@@ -1,10 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { ArrowRight, Mail, ExternalLink } from 'lucide-react';
+import { easeOut } from '@/lib/motion';
 
 export default function LandingPage() {
+  const reduce = useReducedMotion();
+
   return (
     <main className="min-h-[calc(100vh-4rem)] flex flex-col items-center">
       
@@ -13,9 +16,9 @@ export default function LandingPage() {
         
         <div className="lg:col-span-8 space-y-8">
           <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(8px)' }}
+            animate={{ opacity: 1, transform: 'translateY(0px)' }}
+            transition={{ duration: 0.28, ease: easeOut }}
           >
             <p className="text-xs uppercase tracking-[0.2em] font-semibold text-[#57534E] dark:text-[#A8A29E] mb-6">
               Platform Edition 2026
@@ -30,7 +33,7 @@ export default function LandingPage() {
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
+            transition={{ duration: 0.24, ease: easeOut, delay: reduce ? 0 : 0.08 }}
           >
             <p className="text-base text-[#57534E] dark:text-[#E7E5E4] leading-relaxed font-sans mb-8 border-l border-[#1C1B1A] dark:border-[#F9F8F6] pl-6">
               AI-assisted visual inspection designed for scale. We automate the verification of the Legal Metrology (Packaged Commodities) Rules, 2011 to ensure absolute market confidence.
@@ -38,13 +41,13 @@ export default function LandingPage() {
 
             <div className="flex flex-col gap-4">
               <Link href="/scanner" className="group">
-                <button className="w-full flex items-center justify-between px-6 py-4 bg-[#1C1B1A] dark:bg-[#F9F8F6] text-[#F9F8F6] dark:text-[#1C1B1A] font-semibold text-sm uppercase tracking-widest transition-colors hover:bg-[#57534E] dark:hover:bg-[#E7E5E4]">
+                <button className="active-scale w-full flex items-center justify-between px-6 py-4 bg-[#1C1B1A] dark:bg-[#F9F8F6] text-[#F9F8F6] dark:text-[#1C1B1A] font-semibold text-sm uppercase tracking-widest transition-colors hover:bg-[#57534E] dark:hover:bg-[#E7E5E4]">
                   <span>Initiate Scan</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <ArrowRight className="w-4 h-4 transition-transform duration-[160ms] ease-[var(--ease-out)] group-hover:translate-x-1" />
                 </button>
               </Link>
               <Link href="/dashboard">
-                <button className="w-full flex items-center justify-center px-6 py-4 border border-[#1C1B1A] dark:border-[#F9F8F6] text-[#1C1B1A] dark:text-[#F9F8F6] font-semibold text-sm uppercase tracking-widest transition-colors hover:bg-[#1C1B1A] hover:text-[#F9F8F6] dark:hover:bg-[#F9F8F6] dark:hover:text-[#1C1B1A]">
+                <button className="active-scale w-full flex items-center justify-center px-6 py-4 border border-[#1C1B1A] dark:border-[#F9F8F6] text-[#1C1B1A] dark:text-[#F9F8F6] font-semibold text-sm uppercase tracking-widest transition-colors hover:bg-[#1C1B1A] hover:text-[#F9F8F6] dark:hover:bg-[#F9F8F6] dark:hover:text-[#1C1B1A]">
                   Platform Dashboard
                 </button>
               </Link>

@@ -3,9 +3,10 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Search, Inbox, Clock, UserRound, ArrowUpDown, Check, ListFilter } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { apiClient } from '@/lib/api';
 import { StatusBadge, type ComplianceStatus } from '@/components/findings/StatusBadge';
+import { fadeUp, fadeUpReduced, STAGGER } from '@/lib/motion';
 
 interface Inspection {
   _id?: string;
@@ -28,19 +29,16 @@ const sortOptions = [
 ];
 
 const containerVariants = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.05 } }
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 10 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.2 } }
+  hidden: {},
+  show: { transition: { staggerChildren: STAGGER } },
 };
 
 export default function InspectionsPage() {
   const router = useRouter();
   const [inspections, setInspections] = useState<Inspection[]>([]);
   const [loading, setLoading] = useState(true);
+  const reduce = useReducedMotion();
+  const itemVariants = reduce ? fadeUpReduced : fadeUp;
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('');
