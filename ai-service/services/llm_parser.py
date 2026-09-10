@@ -81,13 +81,16 @@ class LLMParser:
         system_instruction: str,
         temperature: float,
     ) -> str:
-        """Single Gemini call with a 60s timeout."""
+        """Single Gemini call with a 60s timeout.
+
+        Note: temperature is not a supported field in generation_config for the
+        Interactions API. The prompt itself constrains the output format.
+        """
         response = await asyncio.wait_for(
             self.gemini_client.aio.interactions.create(
                 model=model,
                 input=parts,
                 system_instruction=system_instruction,
-                config={"temperature": temperature},
             ),
             timeout=60.0,
         )
