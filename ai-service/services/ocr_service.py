@@ -51,26 +51,13 @@ class OCRService:
     def preprocess_image(self, pil_img: Image.Image) -> List[np.ndarray]:
         """
         Generate preprocessed variants of the image for OCR.
-        Optimized for Render free tier (low RAM, low CPU).
+        Single grayscale variant only — halves CPU time on free tier.
+        Adaptive threshold is skipped: marginal accuracy gain, high cost.
         """
         img_np = np.array(pil_img.convert("RGB"))
         gray = cv2.cvtColor(img_np, cv2.COLOR_RGB2GRAY)
         gray = self._upscale_if_needed(gray)
-
-        variants: List[np.ndarray] = []
-
-        # Variant 1: Original Grayscale (Fastest)
-        variants.append(gray)
-
-        # Variant 2: Fast blur + Adaptive threshold (Good for uneven lighting)
-        blurred = cv2.GaussianBlur(gray, (3, 3), 0)
-        adaptive = cv2.adaptiveThreshold(
-            blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY, 31, 15
-        )
-        variants.append(adaptive)
-
-        return variants
+        return [gray]
 
     def _run_tesseract(self, img: np.ndarray, lang: str, psm: int) -> Dict[str, Any]:
         """Run pytesseract with a specific PSM mode and return the data dict."""
@@ -104,17 +91,16 @@ class OCRService:
         best_data: Optional[Dict[str, Any]] = None
         best_score = -1
 
-        # Only try PSM 3 (auto) and PSM 6 (uniform block) to save CPU/Time
+        # PSM 6 (uniform block) is best for product labels — single pass.
         for variant in variants:
-            for psm in (3, 6): 
-                try:
-                    data = self._run_tesseract(variant, lang, psm)
-                    score = self._count_good_tokens(data)
-                    if score > best_score:
-                        best_score = score
-                        best_data = data
-                except Exception:
-                    continue
+            try:
+                data = self._run_tesseract(variant, lang, 6)
+                score = self._count_good_tokens(data)
+                if score > best_score:
+                    best_score = score
+                    best_data = data
+            except Exception:
+                continue
 
         if best_data is None:
             # Absolute fallback: run on raw grayscale

@@ -31,14 +31,36 @@ export const createInspection = async (req: Request, res: Response) => {
     let llmAssisted = false;
     const uploadedImageUrls: string[] = [];
 
-    // Process all images in parallel for speed
-    const imageResults = [];
-  for (let idx = 0; idx < files.length; idx++) {
-    const image = files[idx];
-    const imageUrl = await uploadToCloudinary(image.buffer, image.mimetype);
-    const aiResults = await analyzeImage(image.buffer, image.originalname, image.mimetype, category);
-    imageResults.push({ imageUrl, aiResults, idx });
-  }
+    // Compress image to max 1200px JPEG before sending to AI service.
+    // Keeps original buffer for Cloudinary (full-res evidence).
+    // Reduces typical 3–5 MB photos to ~150–300 KB → much faster OCR + LLM transfer.
+    const compressForAI = async (buffer: Buffer): Promise<{ buffer: Buffer; mimetype: string }> => {
+      try {
+        const sharp = (await import('sharp')).default;
+        const compressed = await sharp(buffer)
+          .resize({ width: 1200, height: 1200, fit: 'inside', withoutEnlargement: true })
+          .jpeg({ quality: 85 })
+          .toBuffer();
+        return { buffer: compressed, mimetype: 'image/jpeg' };
+      } catch {
+        // sharp failed (unsupported format etc.) — fall back to original
+        return { buffer, mimetype: 'image/jpeg' };
+      }
+    };
+
+    // Process all images fully in parallel:
+    //   - Cloudinary upload (original, full-res) runs at the same time as AI analysis
+    //   - All images processed concurrently (not one-by-one)
+    const imageResults = await Promise.all(
+      files.map(async (image, idx) => {
+        const { buffer: aiBuffer, mimetype: aiMime } = await compressForAI(image.buffer);
+        const [imageUrl, aiResults] = await Promise.all([
+          uploadToCloudinary(image.buffer, image.mimetype),
+          analyzeImage(aiBuffer, image.originalname, aiMime, category),
+        ]);
+        return { imageUrl, aiResults, idx };
+      })
+    );
 
     // Sort by original index to keep OCR text in upload order
     imageResults.sort((a, b) => a.idx - b.idx);
