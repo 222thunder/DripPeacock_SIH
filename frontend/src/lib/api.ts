@@ -1,5 +1,51 @@
+import axios, { AxiosError, AxiosRequestConfig } from "axios";
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5001/api";
 
+// ---------------------------------------------------------------------------
+// Axios instance
+// ---------------------------------------------------------------------------
+export const apiAxios = axios.create({
+  baseURL: BASE_URL,
+  timeout: 300_000, // 5 min — matches backend AI service timeout
+});
+
+// Attach JWT token to every request
+apiAxios.interceptors.request.use((config) => {
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("token") : null;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// Unified error handling: 401 → clear session & redirect to /login
+apiAxios.interceptors.response.use(
+  (res) => res,
+  (error: AxiosError) => {
+    if (
+      error.response?.status === 401 &&
+      typeof window !== "undefined" &&
+      !error.config?.url?.includes("/auth/login")
+    ) {
+      ["token", "role", "email", "name"].forEach((k) =>
+        localStorage.removeItem(k)
+      );
+      window.location.href = "/login";
+    }
+    // Re-throw as ApiError so callers get a consistent type
+    const status = error.response?.status ?? 0;
+    const data = error.response?.data as Record<string, string> | undefined;
+    const message =
+      data?.detail ?? data?.message ?? data?.error ?? error.message;
+    return Promise.reject(new ApiError(status, message));
+  }
+);
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 export interface BoundingBox {
   x: number;
   y: number;
@@ -105,6 +151,13 @@ export interface Inspection extends AnalysisResponse {
   extractedDeclarations?: Record<string, DeclarationValue>;
 }
 
+export interface AuthSession {
+  token: string;
+  role?: string;
+  email?: string;
+  name?: string;
+}
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message);
@@ -112,42 +165,38 @@ export class ApiError extends Error {
   }
 }
 
+// ---------------------------------------------------------------------------
+// API client
+// ---------------------------------------------------------------------------
 export const apiClient = {
   async analyzeImage(files: File[], category?: string): Promise<AnalysisResponse> {
     const formData = new FormData();
-    files.forEach((file) => {
-      formData.append("images", file);
-    });
-    if (category) {
-      formData.append("category", category);
-    }
-    return fetchWithHandleError(`${BASE_URL}/inspections`, {
-      method: "POST",
-      body: formData,
-    });
+    files.forEach((file) => formData.append("images", file));
+    if (category) formData.append("category", category);
+
+    const { data } = await apiAxios.post<AnalysisResponse>("/inspections", formData);
+    return data;
   },
 
   async getInspections(): Promise<Inspection[]> {
-    return fetchWithHandleError(`${BASE_URL}/inspections`, {
-      method: "GET",
-    });
+    const { data } = await apiAxios.get<Inspection[]>("/inspections");
+    return data;
   },
 
   async getInspection(id: string): Promise<Inspection> {
-    return fetchWithHandleError(`${BASE_URL}/inspections/${id}`, {
-      method: "GET",
-    });
+    const { data } = await apiAxios.get<Inspection>(`/inspections/${id}`);
+    return data;
   },
 
   async updateInspectionReview(
     id: string,
     payload: { reviewedFindings?: Record<string, ReviewEntry>; notes?: string }
   ): Promise<Inspection> {
-    return fetchWithHandleError(`${BASE_URL}/inspections/${id}/review`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    const { data } = await apiAxios.patch<Inspection>(
+      `/inspections/${id}/review`,
+      payload
+    );
+    return data;
   },
 
   async updateDeclarations(
@@ -155,11 +204,11 @@ export const apiClient = {
     extractedDeclarations: Record<string, any>,
     category?: string
   ): Promise<AnalysisResponse> {
-    return fetchWithHandleError(`${BASE_URL}/inspections/${id}/declarations`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ extractedDeclarations, category }),
-    });
+    const { data } = await apiAxios.patch<AnalysisResponse>(
+      `/inspections/${id}/declarations`,
+      { extractedDeclarations, category }
+    );
+    return data;
   },
 
   async reviewFinding(
@@ -168,122 +217,82 @@ export const apiClient = {
     decision: HumanReviewDecision,
     comment?: string
   ): Promise<AnalysisResponse> {
-    return fetchWithHandleError(
-      `${BASE_URL}/inspections/${encodeURIComponent(id)}/findings/${encodeURIComponent(findingId)}/review`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ decision, comment }),
-      }
+    const { data } = await apiAxios.post<AnalysisResponse>(
+      `/inspections/${encodeURIComponent(id)}/findings/${encodeURIComponent(findingId)}/review`,
+      { decision, comment }
     );
+    return data;
   },
 
   async login(email: string, password: string): Promise<AuthSession> {
-    const session = await fetchWithHandleError<AuthSession>(`${BASE_URL}/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
+    const { data } = await apiAxios.post<AuthSession>("/auth/login", {
+      email,
+      password,
     });
-    localStorage.setItem("token", session.token);
-    if (session.role) localStorage.setItem("role", session.role);
-    localStorage.setItem("email", session.email || "");
-    if (session.name) localStorage.setItem("name", session.name);
-    return session;
+    localStorage.setItem("token", data.token);
+    if (data.role) localStorage.setItem("role", data.role);
+    localStorage.setItem("email", data.email || "");
+    if (data.name) localStorage.setItem("name", data.name);
+    return data;
   },
 
-  async register(email: string, password: string, role: string = "INSPECTOR"): Promise<{ message: string }> {
-    return fetchWithHandleError(`${BASE_URL}/auth/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password, role }),
+  async register(
+    email: string,
+    password: string,
+    role: string = "INSPECTOR"
+  ): Promise<{ message: string }> {
+    const { data } = await apiAxios.post<{ message: string }>("/auth/register", {
+      email,
+      password,
+      role,
     });
+    return data;
   },
 
   async finalizeInspection(id: string): Promise<AnalysisResponse> {
-    return fetchWithHandleError(`${BASE_URL}/inspections/${encodeURIComponent(id)}/finalize`, {
-      method: "POST",
-    });
+    const { data } = await apiAxios.post<AnalysisResponse>(
+      `/inspections/${encodeURIComponent(id)}/finalize`
+    );
+    return data;
   },
 
   async downloadReport(id: string, format: "pdf" | "doc"): Promise<Blob> {
-    const url = `${BASE_URL}/inspections/${encodeURIComponent(id)}/report?format=${format}`;
-    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-    const response = await fetch(url, {
-      method: "GET",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!response.ok) {
-    if (response.status === 401) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('role');
-        localStorage.removeItem('email');
-        localStorage.removeItem('name');
-        window.location.href = '/login';
-      }
-    }
-      let message = "Report download failed";
-      try {
-        const data = await response.json();
-        message = data.error || data.detail || message;
-      } catch {
-        /* ignore */
-      }
-      throw new ApiError(response.status, message);
-    }
-    return response.blob();
+    const { data } = await apiAxios.get<Blob>(
+      `/inspections/${encodeURIComponent(id)}/report`,
+      { params: { format }, responseType: "blob" }
+    );
+    return data;
   },
 };
 
-export async function fetchWithHandleError<T = unknown>(url: string, options?: RequestInit): Promise<T> {
-  const token = typeof window !== "undefined" ? (localStorage.getItem("token") as string | null) : null;
-  const clientHeaders = options?.headers as Record<string, string> | undefined;
-  const finalOptions: RequestInit = {
-    ...options,
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...clientHeaders,
-    },
-  };
+// ---------------------------------------------------------------------------
+// Kept for any legacy callers — wraps apiAxios so behaviour is identical
+// ---------------------------------------------------------------------------
+export async function fetchWithHandleError<T = unknown>(
+  url: string,
+  options?: RequestInit
+): Promise<T> {
+  const method = (options?.method ?? "GET") as AxiosRequestConfig["method"];
+  const body = options?.body;
+  const headers = options?.headers as Record<string, string> | undefined;
 
-  let response: Response;
-  try {
-    response = await fetch(url, finalOptions);
-  } catch (error) {
-    throw new Error(
-      `Network error: Could not connect to the API. Is the server running? (${error instanceof Error ? error.message : String(error)})`
-    );
-  }
+  // Strip the base URL prefix if present so apiAxios baseURL works correctly
+  const relativeUrl = url.startsWith(BASE_URL)
+    ? url.slice(BASE_URL.length)
+    : url;
 
-  if (!response.ok) {
-    if (response.status === 401 && !url.includes('/auth/login')) {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('token');
-        localStorage.removeItem('role');
-        localStorage.removeItem('email');
-        localStorage.removeItem('name');
-        window.location.href = '/login';
-      }
-    }
-    let message = "An error occurred";
-    try {
-      const errorData = await response.json();
-      message = errorData.detail || errorData.message || errorData.error || message;
-    } catch {
-      message = response.statusText;
-    }
-    throw new ApiError(response.status, message);
-  }
-  return response.json() as Promise<T>;
+  const { data } = await apiAxios.request<T>({
+    method,
+    url: relativeUrl,
+    data: body instanceof FormData ? body : body ? JSON.parse(body as string) : undefined,
+    headers,
+  });
+  return data;
 }
 
-export interface AuthSession {
-  token: string;
-  role?: string;
-  email?: string;
-  name?: string;
-}
-
+// ---------------------------------------------------------------------------
+// Session helpers
+// ---------------------------------------------------------------------------
 export const getStoredRole = (): string | null =>
   typeof window !== "undefined" ? localStorage.getItem("role") : null;
 
