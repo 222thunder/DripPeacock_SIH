@@ -35,9 +35,10 @@ class LLMParser:
         if self.gemini_key and (self.provider == "gemini" or not self.provider):
             self.gemini_client = genai.Client(api_key=self.gemini_key)
             self.mode = "gemini"
-            self.model = os.getenv("LLM_MODEL", "gemini-3.8-flash")
+            self.model = os.getenv("LLM_MODEL", "gemini-3.5-flash-lite")
             # Fallback chain: tried in order if primary returns 503/429
-            self.fallback_models = ["gemini-3.1-pro-preview", "gemini-3.5-flash-lite"]
+            # Note: gemini-3.8-flash and gemini-3.1-pro-preview require a paid API key
+            self.fallback_models = ["gemini-3.5-flash-lite"]
             logger.info(f"LLMParser initialized with Gemini API (google.genai) for model: {self.model}")
             logger.info(f"LLMParser fallback chain: {self.fallback_models}")
             return
