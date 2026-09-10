@@ -13,9 +13,10 @@ import {
 } from '../rules/ruleEngine';
 import { applyHumanReview, ReviewerIdentity } from '../services/reviewService';
 import { buildReportDocx, buildReportPdf, ReportInspectionData } from '../services/reportService';
-import { uploadToCloudinary } from '../config/cloudinary';
+import { uploadToCloudinary, deleteFromCloudinary } from '../config/cloudinary';
 
 export const createInspection = async (req: Request, res: Response) => {
+  const uploadedPublicIds: string[] = [];
   try {
     const { productId, category } = req.body;
     const files = req.files as Express.Multer.File[];
@@ -30,11 +31,16 @@ export const createInspection = async (req: Request, res: Response) => {
     let combinedOcr = '';
     let llmAssisted = false;
     const uploadedImageUrls: string[] = [];
+    // Track Cloudinary public IDs as soon as each upload finishes so orphans
+    // can be deleted if a later parallel task rejects.
 
     // Compress image to max 1200px JPEG before sending to AI service.
     // Keeps original buffer for Cloudinary (full-res evidence).
     // Reduces typical 3–5 MB photos to ~150–300 KB → much faster OCR + LLM transfer.
-    const compressForAI = async (buffer: Buffer): Promise<{ buffer: Buffer; mimetype: string }> => {
+    const compressForAI = async (
+      buffer: Buffer,
+      sourceMime: string
+    ): Promise<{ buffer: Buffer; mimetype: string }> => {
       try {
         const sharp = (await import('sharp')).default;
         const compressed = await sharp(buffer)
@@ -43,8 +49,8 @@ export const createInspection = async (req: Request, res: Response) => {
           .toBuffer();
         return { buffer: compressed, mimetype: 'image/jpeg' };
       } catch {
-        // sharp failed (unsupported format etc.) — fall back to original
-        return { buffer, mimetype: 'image/jpeg' };
+        // sharp failed (unsupported format etc.) — fall back to original with source MIME
+        return { buffer, mimetype: sourceMime || 'application/octet-stream' };
       }
     };
 
@@ -53,12 +59,21 @@ export const createInspection = async (req: Request, res: Response) => {
     //   - All images processed concurrently (not one-by-one)
     const imageResults = await Promise.all(
       files.map(async (image, idx) => {
-        const { buffer: aiBuffer, mimetype: aiMime } = await compressForAI(image.buffer);
-        const [imageUrl, aiResults] = await Promise.all([
-          uploadToCloudinary(image.buffer, image.mimetype),
+        const { buffer: aiBuffer, mimetype: aiMime } = await compressForAI(
+          image.buffer,
+          image.mimetype
+        );
+        const uploadPromise = uploadToCloudinary(image.buffer).then((uploaded) => {
+          if (uploaded.publicId) {
+            uploadedPublicIds.push(uploaded.publicId);
+          }
+          return uploaded;
+        });
+        const [uploaded, aiResults] = await Promise.all([
+          uploadPromise,
           analyzeImage(aiBuffer, image.originalname, aiMime, category),
         ]);
-        return { imageUrl, aiResults, idx };
+        return { imageUrl: uploaded.url, aiResults, idx };
       })
     );
 
@@ -170,6 +185,10 @@ export const createInspection = async (req: Request, res: Response) => {
       summary,
     });
   } catch (error: any) {
+    // Best-effort cleanup of any Cloudinary assets uploaded before the failure
+    if (uploadedPublicIds.length > 0) {
+      await Promise.allSettled(uploadedPublicIds.map((id) => deleteFromCloudinary(id)));
+    }
     res.status(500).json({ error: error.message });
   }
 };
