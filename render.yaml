@@ -1,0 +1,46 @@
+services:
+  # ── AI Service (FastAPI + Tesseract OCR) ──────────────────────────────────
+  - type: web
+    name: sih-ai-service
+    runtime: docker
+    dockerfilePath: ./ai-service/Dockerfile
+    dockerContext: ./ai-service
+    plan: free
+    envVars:
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: LLM_MODEL
+        value: gemini-3.5-flash-lite
+      - key: GEMINI_API_KEY
+        sync: false   # Set this in Render dashboard → Environment
+
+  # ── Backend (Express + MongoDB) ───────────────────────────────────────────
+  - type: web
+    name: sih-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install && npm run build
+    startCommand: node dist/index.js
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "5001"
+      - key: MONGODB_URI
+        sync: false   # Set in Render dashboard
+      - key: JWT_SECRET
+        sync: false   # Set in Render dashboard
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false
+      - key: AI_SERVICE_URL
+        fromService:
+          name: sih-ai-service
+          type: web
+          property: host       # Render injects the deployed URL automatically
+      - key: FRONTEND_URL
+        sync: false   # e.g. https://your-app.vercel.app,http://localhost:3000

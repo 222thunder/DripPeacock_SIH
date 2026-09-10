@@ -11,7 +11,9 @@ export const analyzeImage = async (
   mimetype: string,
   category?: string
 ): Promise<AnalysisResponse> => {
-  const baseUrl = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+  const raw = process.env.AI_SERVICE_URL || 'http://localhost:8000';
+  // Render's fromService host property gives a bare hostname — add https://
+  const baseUrl = raw.startsWith('http') ? raw : `https://${raw}`;
   const aiServiceUrl = baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl;
   
   const formData = new FormData();
