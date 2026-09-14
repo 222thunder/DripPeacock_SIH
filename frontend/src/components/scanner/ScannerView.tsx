@@ -46,12 +46,13 @@ export default function ScannerView() {
 
   const handleImagesAccepted = (selectedFiles: File[]) => {
     setFiles(selectedFiles);
-    previewUrls.forEach(url => URL.revokeObjectURL(url));
-    if (selectedFiles.length > 0) {
-      setPreviewUrls(selectedFiles.map(f => URL.createObjectURL(f)));
-    } else {
-      setPreviewUrls([]);
-    }
+    setPreviewUrls(prev => {
+      prev.forEach(url => URL.revokeObjectURL(url));
+      if (selectedFiles.length > 0) {
+        return selectedFiles.map(f => URL.createObjectURL(f));
+      }
+      return [];
+    });
   };
 
   const handleScan = async () => {

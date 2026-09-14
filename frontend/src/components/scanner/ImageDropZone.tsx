@@ -53,12 +53,24 @@ export default function ImageDropZone({
     }
 
     if (validFiles.length > 0) {
-      const newPreviews = validFiles.map(file => ({
-        file,
-        preview: URL.createObjectURL(file)
-      }));
       setPreviewFiles(prev => {
-        const updated = [...prev, ...newPreviews].slice(0, maxFiles);
+        const availableSlots = maxFiles - prev.length;
+        if (availableSlots <= 0) {
+           queueMicrotask(() => setError(`Cannot add more than ${maxFiles} files.`));
+           return prev;
+        }
+        
+        const filesToAdd = validFiles.slice(0, availableSlots);
+        if (validFiles.length > availableSlots) {
+           queueMicrotask(() => setError(`Only added ${availableSlots} files. Maximum limit is ${maxFiles}.`));
+        }
+
+        const newPreviews = filesToAdd.map(file => ({
+          file,
+          preview: URL.createObjectURL(file)
+        }));
+        
+        const updated = [...prev, ...newPreviews];
         // Defer parent callback to avoid setState-during-render
         queueMicrotask(() => onImagesAccepted(updated.map(p => p.file)));
         return updated;
@@ -79,6 +91,8 @@ export default function ImageDropZone({
   const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       processFiles(Array.from(e.target.files));
+      // Clear the input value so the same file can be selected again
+      e.target.value = '';
     }
   }, [processFiles]);
 
