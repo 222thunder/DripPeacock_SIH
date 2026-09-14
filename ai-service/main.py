@@ -33,6 +33,9 @@ ocr_service = OCRService()
 deterministic_parser = DeterministicParser()
 llm_parser = LLMParser()
 
+import asyncio
+ocr_semaphore = asyncio.Semaphore(1)
+
 MANDATORY_LEGAL_METROLOGY_FIELDS = [
     "mrp",
     "net_quantity",
@@ -151,15 +154,9 @@ async def analyze_image(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to read image: {str(e)}")
 
-    # Semaphore to limit concurrent OCR and prevent OOM on Render free tier (512MB)
-    import asyncio
-    global ocr_semaphore
-    if 'ocr_semaphore' not in globals():
-        ocr_semaphore = asyncio.Semaphore(1) # Process 1 image at a time per worker
-
-    # 2. Run OCR & Deterministic Extraction (Threaded to avoid blocking event loop)
     t_ocr_start = time.time()
     try:
+        global ocr_semaphore
         async with ocr_semaphore:
             # Run the CPU-intensive OCR and parsing in a separate thread
             ocr_result, declarations = await asyncio.to_thread(_process_ocr_and_parse, image_bytes)
@@ -215,4 +212,6 @@ async def analyze_image(
     )
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port)

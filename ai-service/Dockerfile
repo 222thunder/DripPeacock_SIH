@@ -16,5 +16,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the rest of the application
 COPY . .
 
-# Run the FastAPI server
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Run the FastAPI server via Python to ensure proper PORT binding
+CMD ["python", "main.py"]
