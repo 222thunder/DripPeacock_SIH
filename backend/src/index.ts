@@ -22,7 +22,7 @@ app.use(helmet());
 // Parse FRONTEND_URL as comma-separated list so both localhost and deployed
 // URLs can be allowed without code changes (e.g. "http://localhost:3000,https://myapp.vercel.app")
 const allowedOrigins: string[] = (
-  process.env.FRONTEND_URL || "http://localhost:3000"
+  process.env.FRONTEND_URL || "http://localhost:3000,http://127.0.0.1:3000"
 )
   .split(",")
   .map((o) => o.trim())
@@ -34,9 +34,16 @@ app.use(
       // Allow server-to-server (no Origin header) and listed origins
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
-      } else {
-        callback(new Error(`CORS: origin '${origin}' not allowed`));
+        return;
       }
+      
+      // Allow local network IPs for mobile testing (e.g., 192.168.x.x:3000, 10.x.x.x:3000)
+      if (/^https?:\/\/(192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[0-1])\.\d+\.\d+):3000$/.test(origin)) {
+        callback(null, true);
+        return;
+      }
+
+      callback(new Error(`CORS: origin '${origin}' not allowed`));
     },
     credentials: true,
   })
