@@ -59,6 +59,12 @@ class AnalysisResponse(BaseModel):
     timing_ms: Dict[str, float]
     image_metadata: Dict[str, Any]
 
+def _process_ocr_and_parse(image_bytes: bytes):
+    """Helper function to run CPU-intensive OCR and parsing synchronously."""
+    ocr_res = ocr_service.extract_text_from_bytes(image_bytes)
+    decls = deterministic_parser.parse(ocr_res.lines, ocr_res.raw_text)
+    return ocr_res, decls
+
 @app.get("/")
 def read_root():
     return {"message": "Legal Metrology AI Service is running", "docs": "/docs"}
@@ -145,22 +151,26 @@ async def analyze_image(
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to read image: {str(e)}")
 
-    # 2. Run OCR
+    # Semaphore to limit concurrent OCR and prevent OOM on Render free tier (512MB)
+    import asyncio
+    global ocr_semaphore
+    if 'ocr_semaphore' not in globals():
+        ocr_semaphore = asyncio.Semaphore(1) # Process 1 image at a time per worker
+
+    # 2. Run OCR & Deterministic Extraction (Threaded to avoid blocking event loop)
     t_ocr_start = time.time()
     try:
-        ocr_result = ocr_service.extract_text_from_bytes(image_bytes)
+        async with ocr_semaphore:
+            # Run the CPU-intensive OCR and parsing in a separate thread
+            ocr_result, declarations = await asyncio.to_thread(_process_ocr_and_parse, image_bytes)
     except Exception as e:
         logger.exception("OCR processing failed")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"OCR processing failed: {str(e)}"
         )
-    timings["ocr"] = round((time.time() - t_ocr_start) * 1000, 2)
-
-    # 3. Deterministic Extraction
-    t_det_start = time.time()
-    declarations = deterministic_parser.parse(ocr_result.lines, ocr_result.raw_text)
-    timings["deterministic_parsing"] = round((time.time() - t_det_start) * 1000, 2)
+    
+    timings["ocr_and_deterministic"] = round((time.time() - t_ocr_start) * 1000, 2)
 
     # 4. Check for missing mandatory fields
     missing_fields = [f for f in MANDATORY_LEGAL_METROLOGY_FIELDS if f not in declarations]
